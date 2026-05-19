@@ -11,7 +11,7 @@
 
 ```bash
 npm install
-# 在 .env 加入 ANTHROPIC_API_KEY=sk-ant-...
+# 在 .env 加入 OPENAI_API_KEY=sk-...
 npm start
 ```
 - 學生：http://localhost:3000/student
@@ -63,14 +63,15 @@ git push -u origin main
 4. 點 **Create** → 然後點 **Connect Project** → 確認連結到 `chinese-quiz`
 5. Vercel 會自動把 `KV_REST_API_URL`、`KV_REST_API_TOKEN` 等環境變數注入專案
 
-### Step 5：設定 Anthropic API Key
+### Step 5：設定 OpenAI API Key
 
-1. 在專案頁面點 **Settings** → 左側選 **Environment Variables**
-2. 加入新變數：
-   - Name: `ANTHROPIC_API_KEY`
-   - Value: 你的 API key（`sk-ant-...`）
-   - Environments: 三個全勾（Production、Preview、Development）
-3. 點 **Save**
+1. 到 https://platform.openai.com/api-keys 申請 API key
+2. 在 Vercel 專案頁面左側選 **Environment Variables**
+3. 加入新變數：
+   - Name: `OPENAI_API_KEY`
+   - Value: 你的 API key（`sk-...`）
+   - Environments: 勾 Production 和 Preview（Development 會被自動鎖住，沒關係）
+4. 點 **Save**
 
 ### Step 6：觸發重新部署
 

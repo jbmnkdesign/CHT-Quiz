@@ -1,6 +1,6 @@
-const Anthropic = require('@anthropic-ai/sdk');
+const OpenAI = require('openai');
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const SYSTEM_PROMPT = `You are an expert Chinese language teacher creating quiz content for English-speaking 12-year-old beginners learning Mandarin Chinese at HSK1 and TOCFL Sprout/Growth (萌芽級/成長級) level.
 
@@ -39,24 +39,25 @@ Rules:
 5. The correct answer is ALWAYS at correctIndex 0 (first position in options)
 6. The 3 wrong options must be plausible HSK1 vocabulary (not random)
 7. Mix all three question types across the set
-8. Return ONLY the JSON array — no explanation, no markdown, just the array
+8. Return ONLY the JSON array — no explanation, no markdown code fences, just the raw array
 
 For non-question messages, respond helpfully in English.`;
 
 async function chatWithAI(message, conversationHistory) {
   const messages = [
+    { role: 'system', content: SYSTEM_PROMPT },
     ...conversationHistory,
     { role: 'user', content: message }
   ];
 
-  const response = await client.messages.create({
-    model: 'claude-sonnet-4-6',
+  const response = await client.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages,
     max_tokens: 4096,
-    system: SYSTEM_PROMPT,
-    messages
+    temperature: 0.7
   });
 
-  return response.content[0].text;
+  return response.choices[0].message.content;
 }
 
 module.exports = { chatWithAI };
