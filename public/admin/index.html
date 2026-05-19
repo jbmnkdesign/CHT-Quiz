@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Teacher Admin — Chinese Quiz</title>
+  <link rel="stylesheet" href="admin.css" />
+</head>
+<body>
+
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <span>🐼</span>
+      <div>
+        <div class="logo-title">Chinese Quiz</div>
+        <div class="logo-sub">Teacher Portal</div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <button class="nav-btn active" data-tab="chat">
+        <span>💬</span> AI Question Generator
+      </button>
+      <button class="nav-btn" data-tab="questions">
+        <span>📚</span> Question Bank
+      </button>
+      <button class="nav-btn" data-tab="results">
+        <span>📊</span> Student Results
+      </button>
+    </nav>
+
+    <a href="/student" target="_blank" class="student-link">
+      🎓 Open Student Page ↗
+    </a>
+  </aside>
+
+  <main class="content">
+
+    <!-- ── AI CHAT TAB ── -->
+    <section id="tab-chat" class="tab-panel active">
+      <div class="panel-header">
+        <h2>💬 AI Question Generator</h2>
+        <p>Tell the AI what topics you want to test this week, and it will generate quiz questions instantly.</p>
+      </div>
+
+      <div class="chat-layout">
+        <div class="chat-panel">
+          <div id="chat-messages" class="chat-messages">
+            <div class="chat-bubble ai-bubble">
+              <div class="bubble-content">
+                👋 Hi! I'm your Chinese teaching assistant.<br /><br />
+                Tell me what topics you'd like to test, and I'll generate quiz questions for your students.<br /><br />
+                <strong>Examples:</strong><br />
+                • "Generate 10 questions about animals"<br />
+                • "Make questions on food and drinks for beginners"<br />
+                • "Create a mix of colors and numbers questions"
+              </div>
+            </div>
+          </div>
+
+          <div class="chat-input-row">
+            <textarea id="chat-input" class="chat-textarea"
+              placeholder="Type your message... (e.g. 'Generate 8 questions about family members')"
+              rows="2"></textarea>
+            <button id="send-btn" class="btn btn-send">Send ➤</button>
+          </div>
+        </div>
+
+        <!-- Question Preview Panel -->
+        <div id="preview-panel" class="preview-panel hidden">
+          <div class="preview-header">
+            <h3>✨ Generated Questions Preview</h3>
+            <span id="preview-count" class="preview-count"></span>
+          </div>
+          <div id="preview-list" class="preview-list"></div>
+          <div class="preview-actions">
+            <button id="save-questions-btn" class="btn btn-primary">
+              💾 Save to Question Bank
+            </button>
+            <button id="discard-btn" class="btn btn-ghost">Discard</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── QUESTIONS TAB ── -->
+    <section id="tab-questions" class="tab-panel">
+      <div class="panel-header">
+        <h2>📚 Question Bank</h2>
+        <div class="header-actions">
+          <select id="filter-topic" class="filter-select">
+            <option value="all">All Topics</option>
+          </select>
+          <span id="question-count-badge" class="badge"></span>
+        </div>
+      </div>
+
+      <div id="questions-list" class="questions-list">
+        <div class="loading">Loading questions...</div>
+      </div>
+    </section>
+
+    <!-- ── RESULTS TAB ── -->
+    <section id="tab-results" class="tab-panel">
+      <div class="panel-header">
+        <h2>📊 Student Results</h2>
+        <button id="clear-results-btn" class="btn btn-danger-ghost">🗑 Clear All Results</button>
+      </div>
+
+      <!-- Summary Cards -->
+      <div id="summary-cards" class="summary-cards"></div>
+
+      <!-- Results Table -->
+      <div class="table-wrap">
+        <table id="results-table" class="results-table">
+          <thead>
+            <tr>
+              <th>Student</th>
+              <th>Topic</th>
+              <th>Score</th>
+              <th>%</th>
+              <th>Duration</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody id="results-tbody">
+            <tr><td colspan="6" class="loading">Loading results...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="admin.js"></script>
+</body>
+</html>

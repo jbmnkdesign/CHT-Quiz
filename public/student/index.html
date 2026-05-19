@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Learn Chinese 學中文</title>
+  <link rel="stylesheet" href="quiz.css" />
+</head>
+<body>
+
+  <!-- WELCOME SCREEN -->
+  <div id="welcome-screen" class="screen active">
+    <header class="hero-header">
+      <div class="hero-title">
+        <span class="hero-emoji">🐼</span>
+        <h1>Learn Chinese!<br /><span class="zh">學中文</span></h1>
+        <p class="hero-sub">HSK1 · TOCFL Sprout &amp; Growth Level</p>
+      </div>
+    </header>
+
+    <main class="welcome-main">
+      <div class="card welcome-card">
+        <label class="input-label" for="student-name">Your Name 你的名字</label>
+        <input id="student-name" class="text-input" type="text"
+               placeholder="Type your name..." maxlength="30" autocomplete="off" />
+
+        <label class="input-label" for="topic-select">Choose a Topic 選主題</label>
+        <select id="topic-select" class="select-input">
+          <option value="all">🌟 All Topics</option>
+        </select>
+
+        <label class="input-label" for="count-select">Number of Questions</label>
+        <select id="count-select" class="select-input">
+          <option value="5">5 questions</option>
+          <option value="10" selected>10 questions</option>
+          <option value="15">15 questions</option>
+        </select>
+
+        <button id="start-btn" class="btn btn-primary" disabled>
+          Start Quiz! 開始測驗 🚀
+        </button>
+      </div>
+    </main>
+  </div>
+
+  <!-- QUIZ SCREEN -->
+  <div id="quiz-screen" class="screen">
+    <header class="quiz-header">
+      <div class="progress-info">
+        <span id="progress-label">1 / 10</span>
+        <span id="score-label">Score: 0</span>
+      </div>
+      <div class="progress-bar-wrap">
+        <div id="progress-bar" class="progress-bar"></div>
+      </div>
+    </header>
+
+    <main class="quiz-main">
+      <div id="question-card" class="card question-card">
+
+        <!-- Question visual area -->
+        <div id="question-visual" class="question-visual"></div>
+
+        <!-- Question text -->
+        <p id="question-text" class="question-text"></p>
+
+        <!-- Feedback banner -->
+        <div id="feedback-banner" class="feedback-banner hidden"></div>
+
+        <!-- Options grid -->
+        <div id="options-grid" class="options-grid"></div>
+
+        <!-- Next button -->
+        <button id="next-btn" class="btn btn-primary hidden">
+          Next ➡️
+        </button>
+      </div>
+    </main>
+  </div>
+
+  <!-- RESULTS SCREEN -->
+  <div id="results-screen" class="screen">
+    <header class="hero-header">
+      <div class="hero-title">
+        <span id="result-emoji" class="hero-emoji">🌟</span>
+        <h1 id="result-message">Great job!</h1>
+      </div>
+    </header>
+
+    <main class="results-main">
+      <div class="card results-card">
+        <div class="score-display">
+          <div class="score-circle">
+            <span id="score-percent">0%</span>
+          </div>
+          <p id="score-detail" class="score-detail"></p>
+        </div>
+
+        <div id="result-breakdown" class="result-breakdown"></div>
+
+        <div class="results-actions">
+          <button id="retry-btn" class="btn btn-primary">Try Again 再試一次</button>
+          <button id="change-topic-btn" class="btn btn-secondary">Change Topic 換主題</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="quiz.js"></script>
+</body>
+</html>
