@@ -1,6 +1,6 @@
-const OpenAI = require('openai');
+const { GoogleGenAI } = require('@google/genai');
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const client = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const SYSTEM_PROMPT = `You are an expert Chinese language teacher creating quiz content for English-speaking 12-year-old beginners learning Mandarin Chinese at HSK1 and TOCFL Sprout/Growth (萌芽級/成長級) level.
 
@@ -44,20 +44,26 @@ Rules:
 For non-question messages, respond helpfully in English.`;
 
 async function chatWithAI(message, conversationHistory) {
-  const messages = [
-    { role: 'system', content: SYSTEM_PROMPT },
-    ...conversationHistory,
-    { role: 'user', content: message }
+  // Convert from client-side history (role: 'user' | 'assistant') to Gemini format (role: 'user' | 'model')
+  const contents = [
+    ...conversationHistory.map(msg => ({
+      role: msg.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: msg.content }]
+    })),
+    { role: 'user', parts: [{ text: message }] }
   ];
 
-  const response = await client.chat.completions.create({
-    model: 'gpt-4o-mini',
-    messages,
-    max_tokens: 4096,
-    temperature: 0.7
+  const response = await client.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents,
+    config: {
+      systemInstruction: SYSTEM_PROMPT,
+      maxOutputTokens: 4096,
+      temperature: 0.7
+    }
   });
 
-  return response.choices[0].message.content;
+  return response.text;
 }
 
 module.exports = { chatWithAI };

@@ -11,7 +11,7 @@
 
 ```bash
 npm install
-# 在 .env 加入 OPENAI_API_KEY=sk-...
+# 在 .env 加入 GEMINI_API_KEY=...
 npm start
 ```
 - 學生：http://localhost:3000/student
@@ -63,13 +63,13 @@ git push -u origin main
 4. 點 **Create** → 然後點 **Connect Project** → 確認連結到 `chinese-quiz`
 5. Vercel 會自動把 `KV_REST_API_URL`、`KV_REST_API_TOKEN` 等環境變數注入專案
 
-### Step 5：設定 OpenAI API Key
+### Step 5：設定 Gemini API Key
 
-1. 到 https://platform.openai.com/api-keys 申請 API key
+1. 到 https://aistudio.google.com/apikey 申請 API key（免費，只要有 Google 帳號）
 2. 在 Vercel 專案頁面左側選 **Environment Variables**
 3. 加入新變數：
-   - Name: `OPENAI_API_KEY`
-   - Value: 你的 API key（`sk-...`）
+   - Name: `GEMINI_API_KEY`
+   - Value: 你的 API key
    - Environments: 勾 Production 和 Preview（Development 會被自動鎖住，沒關係）
 4. 點 **Save**
 
