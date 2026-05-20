@@ -442,6 +442,26 @@ body {
   display: block;
 }
 
+.question-zhuyin-big {
+  font-size: 1.05rem;
+  color: var(--coral-dk);
+  font-weight: 500;
+  margin-top: 4px;
+  display: block;
+  letter-spacing: 0.06em;
+  font-family: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+}
+
+.question-english-big {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 2.6rem;
+  font-weight: 800;
+  color: var(--coral-dk);
+  line-height: 1.2;
+  display: block;
+  letter-spacing: -0.01em;
+}
+
 .question-text {
   font-size: 1.08rem;
   font-weight: 600;
@@ -553,12 +573,40 @@ body {
   margin-top: 5px;
 }
 
+.opt-zhuyin {
+  font-size: 0.78rem;
+  color: var(--coral-dk);
+  font-weight: 500;
+  display: block;
+  margin-top: 3px;
+  letter-spacing: 0.05em;
+  font-family: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+}
+
 .opt-english {
   font-size: 0.78rem;
   color: var(--text-sub);
   display: block;
   margin-top: 4px;
   font-weight: 500;
+}
+
+/* For word_to_meaning questions: option is a big English word only */
+.option-card-english {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 80px;
+  padding: 18px 14px;
+}
+
+.opt-english-big {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text);
+  text-align: center;
+  line-height: 1.25;
 }
 
 /* ─── Score circle ─── */

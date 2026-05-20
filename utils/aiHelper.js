@@ -18,7 +18,7 @@ When the teacher requests questions about ANY topic — predefined OR custom (e.
 
 If the teacher mentions MULTIPLE topics in one request (e.g., "generate travel, countries, and culture, 10 each"), produce ALL of them in one combined JSON array. Set the "topic" field appropriately on each question so they can be grouped later.
 
-Each question follows this exact shape:
+Each question follows this exact shape (note the THREE phonetic fields — chinese, pinyin, zhuyin):
 
 {
   "topic": "Travel",
@@ -28,13 +28,14 @@ Each question follows this exact shape:
   "answer": {
     "chinese": "飛機",
     "pinyin": "fēijī",
+    "zhuyin": "ㄈㄟ ㄐㄧ",
     "english": "airplane"
   },
   "options": [
-    { "chinese": "飛機", "pinyin": "fēijī", "english": "airplane" },
-    { "chinese": "火車", "pinyin": "huǒchē", "english": "train" },
-    { "chinese": "汽車", "pinyin": "qìchē", "english": "car" },
-    { "chinese": "船", "pinyin": "chuán", "english": "boat" }
+    { "chinese": "飛機", "pinyin": "fēijī",   "zhuyin": "ㄈㄟ ㄐㄧ",   "english": "airplane" },
+    { "chinese": "火車", "pinyin": "huǒchē",  "zhuyin": "ㄏㄨㄛˇ ㄔㄜ",  "english": "train" },
+    { "chinese": "汽車", "pinyin": "qìchē",   "zhuyin": "ㄑㄧˋ ㄔㄜ",   "english": "car" },
+    { "chinese": "船",   "pinyin": "chuán",   "zhuyin": "ㄔㄨㄢˊ",      "english": "boat" }
   ],
   "correctIndex": 0
 }
@@ -45,16 +46,36 @@ HARD RULES
 1. ALL Chinese MUST be Traditional (繁體) — never Simplified
 2. Vocabulary must be HSK1 or TOCFL Sprout/Growth level (simple, common words a 12-year-old beginner can learn). For advanced topics (e.g., "culture"), pick the simplest related vocabulary (e.g., 新年, 紅包, 月餅 — not 文化遺產, 宗教信仰).
 3. Pinyin MUST include proper tone diacritics: ā á ǎ à, ē é ě è, ī í ǐ ì, ō ó ǒ ò, ū ú ǔ ù, ǖ ǘ ǚ ǜ
-4. "type" must be one of:
+4. Zhuyin (注音符號 / Bopomofo) MUST be provided for EVERY chinese field — both in 'answer' AND every 'options' entry. Use a SPACE between each syllable. Tone marks: 1st = no mark, 2nd = ˊ, 3rd = ˇ, 4th = ˋ, neutral = ˙ before the syllable. Examples:
+   - 媽 mā → ㄇㄚ
+   - 馬 mǎ → ㄇㄚˇ
+   - 謝謝 xièxiè → ㄒㄧㄝˋ ㄒㄧㄝˋ
+   - 學校 xuéxiào → ㄒㄩㄝˊ ㄒㄧㄠˋ
+   - 桌子 zhuōzi → ㄓㄨㄛ ˙ㄗ
+5. "type" must be one of:
    - "image_to_word"   — show emoji, choose correct Chinese word
    - "word_to_meaning" — show Chinese word, choose correct English meaning
    - "meaning_to_word" — show English word, choose correct Chinese word
-5. correctIndex is ALWAYS 0 (correct option first; the app shuffles later)
-6. The 3 wrong options must be PLAUSIBLE distractors in the same semantic field (not random) — also Traditional Chinese, HSK1 level
-7. Mix all three question types across the batch (don't make them all the same type)
-8. Pick a good "emoji" that visually represents the answer
-9. The "topic" field should be a clean English noun phrase, capitalized: "Animals", "Travel", "Festivals" — keep it consistent so the same topic name groups questions in the bank
-10. Return ONLY the JSON array — your entire response is the array, parseable by JSON.parse(). No prose before, after, or around it.
+6. correctIndex is ALWAYS 0 (correct option first; the app shuffles later)
+7. The 3 wrong options must be PLAUSIBLE distractors in the same semantic field (not random) — also Traditional Chinese, HSK1 level
+8. ─── VARIETY (very important) ───
+   Across the batch, the CORRECT ANSWER must be a DIFFERENT word for every question. Do not make the same word the answer twice. If the teacher asks for 10 questions about emotions, you must produce 10 questions where the correct answers are 10 different emotion words (高興, 難過, 生氣, 害怕, 累, 餓, 開心, 哭, 笑, 緊張 — for example). NEVER ask "What does 快樂 mean?" twice.
+9. ─── EMOJI ACCURACY ───
+   The emoji MUST visually represent the correct answer specifically — not the topic in general. Within a batch, every question should use a DIFFERENT emoji. Bad: using ✈️ for both 飛機 (airplane) and 旅行 (travel). Good: ✈️ for 飛機, 🧳 for 旅行, 🌏 for 國家. Some helpful mappings:
+   - 旅行 = 🧳 or 🗺️ (luggage / map — NOT ✈️ which is airplane)
+   - 國家 = 🌍 or 🇹🇼 (globe / flag)
+   - 玩 = 🎮 or 🏖️ (videogame / beach — NOT generic emoji)
+   - 飛機 = ✈️
+   - 護照 = 🛂
+   - 機場 = 🛫
+   - 海邊 = 🏖️
+   - 山 = ⛰️
+   - 文化 = 🎎 or 🏮
+   - 節日 = 🎉
+   - 春節 = 🧧
+   For abstract words with no clear emoji, pick the closest sensory representation; never reuse an emoji already used in the same batch.
+10. Mix all three question types across the batch (don't make them all the same type)
+11. Return ONLY the JSON array — your entire response is the array, parseable by JSON.parse(). No prose before, after, or around it.
 
 ═══════════════════════════════════════
 TARGETED PRACTICE (when student context is provided)
@@ -63,6 +84,7 @@ If the teacher's message includes a section like "Student context: <name> has mi
 - Heavily feature those exact missed words (as the correct answer in most questions)
 - Use the missed words across all three question types to reinforce them from different angles
 - Add 1-2 review questions on related vocabulary to keep it varied
+Still follow VARIETY rule #8 — even when targeting missed words, vary which missed word is the answer for each question; don't repeat the same word as the answer.
 
 ═══════════════════════════════════════
 NON-QUESTION MESSAGES

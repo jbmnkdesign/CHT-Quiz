@@ -235,6 +235,7 @@ router.get('/students/:name', async (req, res) => {
           wrongMap.set(key, {
             chinese: ans.chinese,
             pinyin: ans.pinyin,
+            zhuyin: ans.zhuyin || '',
             english: ans.english,
             topic: ans.topic,
             timesMissed: 0,

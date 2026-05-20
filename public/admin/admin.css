@@ -599,6 +599,13 @@ body {
 }
 
 .preview-pinyin { font-size: 0.82rem; color: var(--pinyin); font-weight: 600; }
+.preview-zhuyin {
+  font-size: 0.78rem;
+  color: var(--coral-dk);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  font-family: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+}
 .preview-english { font-size: 0.82rem; color: var(--text-sub); font-weight: 500; }
 
 .preview-actions {
@@ -740,6 +747,13 @@ body {
 }
 
 .q-pinyin { font-size: 0.82rem; color: var(--pinyin); font-weight: 600; }
+.q-zhuyin {
+  font-size: 0.78rem;
+  color: var(--coral-dk);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  font-family: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+}
 .q-english { font-size: 0.82rem; color: var(--text-sub); font-weight: 500; }
 
 .q-type-tag {

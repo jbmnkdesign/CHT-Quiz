@@ -194,11 +194,12 @@ function showQuestion(index) {
       <div class="question-word-display">
         <span class="question-chinese-big">${escapeHtml(q.answer.chinese)}</span>
         <span class="question-pinyin-big">${escapeHtml(q.answer.pinyin)}</span>
+        ${q.answer.zhuyin ? `<span class="question-zhuyin-big">${escapeHtml(q.answer.zhuyin)}</span>` : ''}
       </div>`;
   } else if (q.type === 'meaning_to_word') {
     questionVisual.innerHTML = `
       <div class="question-word-display">
-        <span class="question-chinese-big" style="color:var(--accent)">${escapeHtml(q.answer.english)}</span>
+        <span class="question-english-big">${escapeHtml(q.answer.english)}</span>
       </div>`;
   } else {
     questionVisual.innerHTML = `<span class="question-emoji">${q.emoji || '📖'}</span>`;
@@ -206,14 +207,24 @@ function showQuestion(index) {
 
   questionText.textContent = q.question_en;
 
+  // Option cards: render different fields depending on what's being asked.
+  // For word_to_meaning the prompt already shows the Chinese, so the options
+  // must only reveal English — otherwise students just match characters.
   optionsGrid.innerHTML = '';
   q.options.forEach((opt, i) => {
     const card = document.createElement('div');
     card.className = 'option-card';
-    card.innerHTML = `
-      <span class="opt-chinese">${escapeHtml(opt.chinese)}</span>
-      <span class="opt-pinyin">${escapeHtml(opt.pinyin)}</span>
-      <span class="opt-english">${escapeHtml(opt.english)}</span>`;
+    if (q.type === 'word_to_meaning') {
+      card.classList.add('option-card-english');
+      card.innerHTML = `<span class="opt-english-big">${escapeHtml(opt.english)}</span>`;
+    } else {
+      // image_to_word and meaning_to_word: show full Chinese + phonetics
+      card.innerHTML = `
+        <span class="opt-chinese">${escapeHtml(opt.chinese)}</span>
+        <span class="opt-pinyin">${escapeHtml(opt.pinyin)}</span>
+        ${opt.zhuyin ? `<span class="opt-zhuyin">${escapeHtml(opt.zhuyin)}</span>` : ''}
+        ${q.type === 'meaning_to_word' ? '' : `<span class="opt-english">${escapeHtml(opt.english)}</span>`}`;
+    }
     card.addEventListener('click', () => handleAnswer(i));
     optionsGrid.appendChild(card);
   });
@@ -233,6 +244,7 @@ function handleAnswer(selectedIndex) {
     topic:      q.topic,
     chinese:    q.answer.chinese,
     pinyin:     q.answer.pinyin,
+    zhuyin:     q.answer.zhuyin || '',
     english:    q.answer.english,
     correct,
     timeTaken:  elapsed
@@ -248,9 +260,10 @@ function handleAnswer(selectedIndex) {
   });
 
   feedbackBanner.className = 'feedback-banner ' + (correct ? 'correct' : 'wrong');
+  const phon = q.answer.zhuyin ? `${q.answer.pinyin} · ${q.answer.zhuyin}` : q.answer.pinyin;
   feedbackBanner.textContent = correct
-    ? `✓ Correct — ${q.answer.chinese} (${q.answer.pinyin}) means "${q.answer.english}"`
-    : `✗ Answer: ${q.answer.chinese} (${q.answer.pinyin}) = ${q.answer.english}`;
+    ? `✓ Correct — ${q.answer.chinese} (${phon}) means "${q.answer.english}"`
+    : `✗ Answer: ${q.answer.chinese} (${phon}) = ${q.answer.english}`;
 
   scoreLabel.textContent = `Score ${state.score}`;
   nextBtn.classList.remove('hidden');
@@ -330,7 +343,7 @@ function renderBreakdown() {
       <span class="bd-icon">${a.correct ? '✓' : '✗'}</span>
       <span class="bd-chinese">${escapeHtml(a.chinese)}</span>
       <div class="bd-meta">
-        <span class="bd-pinyin">${escapeHtml(a.pinyin)}</span>
+        <span class="bd-pinyin">${escapeHtml(a.pinyin)}${a.zhuyin ? ' · ' + escapeHtml(a.zhuyin) : ''}</span>
         <span class="bd-english">${escapeHtml(a.english)}</span>
       </div>`;
     resultBreakdown.appendChild(row);

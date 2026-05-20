@@ -168,6 +168,7 @@ function showPreview(questions) {
       <div class="preview-q-answer">
         <span class="preview-chinese">${escapeHtml(q.answer.chinese)}</span>
         <span class="preview-pinyin">${escapeHtml(q.answer.pinyin)}</span>
+        ${q.answer.zhuyin ? `<span class="preview-zhuyin">${escapeHtml(q.answer.zhuyin)}</span>` : ''}
         <span class="preview-english">${escapeHtml(q.answer.english)}</span>
       </div>`;
     previewList.appendChild(div);
@@ -262,6 +263,7 @@ function renderTopicGroups() {
         <div class="q-answer">
           <span class="q-chinese">${escapeHtml(q.answer.chinese)}</span>
           <span class="q-pinyin">${escapeHtml(q.answer.pinyin)}</span>
+          ${q.answer.zhuyin ? `<span class="q-zhuyin">${escapeHtml(q.answer.zhuyin)}</span>` : ''}
           <span class="q-english">${escapeHtml(q.answer.english)}</span>
         </div>
         <span class="q-type-tag">${formatType(q.type)}</span>
@@ -517,7 +519,7 @@ function renderStudentDetail() {
         <div class="wrong-word">
           <span class="ww-chinese">${escapeHtml(w.chinese)}</span>
           <div class="ww-meta">
-            <span class="ww-pinyin">${escapeHtml(w.pinyin)}</span>
+            <span class="ww-pinyin">${escapeHtml(w.pinyin)}${w.zhuyin ? ' · ' + escapeHtml(w.zhuyin) : ''}</span>
             <span class="ww-english">${escapeHtml(w.english)}${w.topic ? ' · ' + escapeHtml(w.topic) : ''}</span>
           </div>
           <span class="ww-count">×${w.timesMissed}</span>
