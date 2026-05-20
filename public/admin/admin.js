@@ -572,32 +572,52 @@ async function removeAssignment(aid) {
 /* ─── ALL RESULTS TAB ─── */
 async function loadResults() {
   try {
-    const [resultsRes, summaryRes] = await Promise.all([
-      fetch('/api/admin/results'),
-      fetch('/api/admin/results/summary')
-    ]);
-    state.results = await resultsRes.json();
-    const summary  = await summaryRes.json();
-    renderSummary(summary);
+    const res = await fetch('/api/admin/results');
+    state.results = await res.json();
     renderResults();
   } catch {
     resultsTbody.innerHTML = '<tr><td colspan="6" class="loading">Failed to load results.</td></tr>';
   }
 }
 
-function renderSummary(summary) {
+function computeSummary(results) {
+  if (results.length === 0) {
+    return { totalTests: 0, averageScore: 0, topicBreakdown: {} };
+  }
+  const totalTests = results.length;
+  const averageScore = Math.round(
+    results.reduce((sum, r) => sum + (r.percentage || 0), 0) / totalTests
+  );
+  const topicBreakdown = {};
+  results.forEach(r => {
+    if (!topicBreakdown[r.topic]) topicBreakdown[r.topic] = { count: 0, totalScore: 0 };
+    topicBreakdown[r.topic].count++;
+    topicBreakdown[r.topic].totalScore += (r.percentage || 0);
+  });
+  Object.keys(topicBreakdown).forEach(t => {
+    topicBreakdown[t].averageScore = Math.round(
+      topicBreakdown[t].totalScore / topicBreakdown[t].count
+    );
+  });
+  return { totalTests, averageScore, topicBreakdown };
+}
+
+function renderSummary(summary, displayName) {
   const topicList = Object.entries(summary.topicBreakdown || {})
     .sort((a, b) => b[1].count - a[1].count)
     .slice(0, 3);
 
+  const testsLabel = displayName ? `${displayName}'s Tests` : 'Total Tests';
+  const avgLabel   = displayName ? `${displayName}'s Average` : 'Average Score';
+
   let html = `
     <div class="summary-card">
       <span class="sc-value">${summary.totalTests}</span>
-      <div class="sc-label">Total Tests</div>
+      <div class="sc-label">${escapeHtml(testsLabel)}</div>
     </div>
     <div class="summary-card">
-      <span class="sc-value">${summary.averageScore}%</span>
-      <div class="sc-label">Average Score</div>
+      <span class="sc-value">${summary.totalTests > 0 ? summary.averageScore + '%' : '—'}</span>
+      <div class="sc-label">${escapeHtml(avgLabel)}</div>
     </div>`;
 
   topicList.forEach(([topic, data]) => {
@@ -612,13 +632,24 @@ function renderSummary(summary) {
 }
 
 function renderResults() {
-  const filter = resultsNameFilter.value.trim().toLowerCase();
+  const filterRaw = resultsNameFilter.value.trim();
+  const filter = filterRaw.toLowerCase();
   const shown = filter
     ? state.results.filter(r => r.studentName && r.studentName.toLowerCase().includes(filter))
     : state.results;
 
+  // Use the matched student's actual capitalized name when exactly one unique student matches;
+  // otherwise fall back to whatever the teacher typed.
+  let displayName = null;
+  if (filterRaw) {
+    const uniqueNames = [...new Set(shown.map(r => r.studentName))];
+    displayName = uniqueNames.length === 1 ? uniqueNames[0] : filterRaw;
+  }
+
+  renderSummary(computeSummary(shown), displayName);
+
   if (shown.length === 0) {
-    resultsTbody.innerHTML = `<tr><td colspan="6" class="loading">${filter ? 'No matching results.' : 'No results yet.'}</td></tr>`;
+    resultsTbody.innerHTML = `<tr><td colspan="6" class="loading">${filter ? `No results for "${escapeHtml(filterRaw)}" yet.` : 'No results yet.'}</td></tr>`;
     return;
   }
 
