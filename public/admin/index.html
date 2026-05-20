@@ -3,114 +3,173 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Teacher Admin — Chinese Quiz</title>
+  <title>Teacher Portal · Chinese Quiz</title>
   <link rel="stylesheet" href="admin.css" />
 </head>
 <body>
 
   <aside class="sidebar">
-    <div class="sidebar-logo">
-      <span>🐼</span>
+    <div class="sidebar-brand">
+      <span class="brand-mark">學</span>
       <div>
-        <div class="logo-title">Chinese Quiz</div>
-        <div class="logo-sub">Teacher Portal</div>
+        <div class="brand-title">Chinese Quiz</div>
+        <div class="brand-sub">Teacher Portal</div>
       </div>
     </div>
 
     <nav class="sidebar-nav">
-      <button class="nav-btn active" data-tab="chat">
-        <span>💬</span> AI Question Generator
-      </button>
-      <button class="nav-btn" data-tab="questions">
-        <span>📚</span> Question Bank
-      </button>
-      <button class="nav-btn" data-tab="results">
-        <span>📊</span> Student Results
-      </button>
+      <button class="nav-btn active" data-tab="chat">AI Generator</button>
+      <button class="nav-btn" data-tab="questions">Question Bank</button>
+      <button class="nav-btn" data-tab="students">Students</button>
+      <button class="nav-btn" data-tab="results">All Results</button>
     </nav>
 
-    <a href="/student" target="_blank" class="student-link">
-      🎓 Open Student Page ↗
-    </a>
+    <a href="/student" target="_blank" class="student-link">Open Student Page ↗</a>
   </aside>
 
   <main class="content">
 
-    <!-- ── AI CHAT TAB ── -->
+    <!-- ── AI CHAT ── -->
     <section id="tab-chat" class="tab-panel active">
       <div class="panel-header">
-        <h2>💬 AI Question Generator</h2>
-        <p>Tell the AI what topics you want to test this week, and it will generate quiz questions instantly.</p>
+        <div>
+          <h2>AI Question Generator</h2>
+          <p>Tell the AI any topic — it will generate quiz questions in Traditional Chinese with Pinyin.</p>
+        </div>
       </div>
 
       <div class="chat-layout">
         <div class="chat-panel">
+          <div class="chat-context-bar">
+            <label class="ctx-label">Target student (optional)</label>
+            <select id="target-student" class="ctx-select">
+              <option value="">Anyone — fresh questions</option>
+            </select>
+            <span class="ctx-hint">Selecting a name uses their recent wrong answers as context.</span>
+          </div>
+
           <div id="chat-messages" class="chat-messages">
             <div class="chat-bubble ai-bubble">
               <div class="bubble-content">
-                👋 Hi! I'm your Chinese teaching assistant.<br /><br />
-                Tell me what topics you'd like to test, and I'll generate quiz questions for your students.<br /><br />
-                <strong>Examples:</strong><br />
-                • "Generate 10 questions about animals"<br />
-                • "Make questions on food and drinks for beginners"<br />
-                • "Create a mix of colors and numbers questions"
+                Hi! I'm your Chinese teaching assistant. Try things like:<br /><br />
+                • <em>Generate 10 questions about travel and 10 about countries</em><br />
+                • <em>Make a 15-question quiz on festivals and culture</em><br />
+                • <em>Create practice for Andy — focus on his wrong answers</em> <em>(select Andy above first)</em>
               </div>
             </div>
           </div>
 
           <div class="chat-input-row">
             <textarea id="chat-input" class="chat-textarea"
-              placeholder="Type your message... (e.g. 'Generate 8 questions about family members')"
+              placeholder="Type a request and press Enter…"
               rows="2"></textarea>
-            <button id="send-btn" class="btn btn-send">Send ➤</button>
+            <button id="send-btn" class="btn btn-primary btn-inline">Send</button>
           </div>
         </div>
 
-        <!-- Question Preview Panel -->
         <div id="preview-panel" class="preview-panel hidden">
           <div class="preview-header">
-            <h3>✨ Generated Questions Preview</h3>
-            <span id="preview-count" class="preview-count"></span>
+            <h3>Preview</h3>
+            <span id="preview-count" class="badge"></span>
           </div>
           <div id="preview-list" class="preview-list"></div>
           <div class="preview-actions">
-            <button id="save-questions-btn" class="btn btn-primary">
-              💾 Save to Question Bank
-            </button>
+            <button id="save-questions-btn" class="btn btn-primary">Save to Bank</button>
             <button id="discard-btn" class="btn btn-ghost">Discard</button>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- ── QUESTIONS TAB ── -->
+    <!-- ── QUESTION BANK ── -->
     <section id="tab-questions" class="tab-panel">
       <div class="panel-header">
-        <h2>📚 Question Bank</h2>
-        <div class="header-actions">
-          <select id="filter-topic" class="filter-select">
-            <option value="all">All Topics</option>
-          </select>
-          <span id="question-count-badge" class="badge"></span>
+        <div>
+          <h2>Question Bank</h2>
+          <p>Questions grouped by topic. Click a topic to expand, rename, or delete.</p>
         </div>
+        <span id="question-count-badge" class="badge"></span>
       </div>
 
-      <div id="questions-list" class="questions-list">
-        <div class="loading">Loading questions...</div>
+      <div id="topic-groups" class="topic-groups">
+        <div class="loading">Loading questions…</div>
       </div>
     </section>
 
-    <!-- ── RESULTS TAB ── -->
-    <section id="tab-results" class="tab-panel">
+    <!-- ── STUDENTS ── -->
+    <section id="tab-students" class="tab-panel">
       <div class="panel-header">
-        <h2>📊 Student Results</h2>
-        <button id="clear-results-btn" class="btn btn-danger-ghost">🗑 Clear All Results</button>
+        <div>
+          <h2>Students</h2>
+          <p>Add students by name, assign weekly topics, and view individual performance.</p>
+        </div>
       </div>
 
-      <!-- Summary Cards -->
+      <div class="students-layout">
+
+        <div class="students-left">
+          <div class="card">
+            <h3 class="card-title">Add / Assign</h3>
+            <p class="card-sub">Type a student's name (e.g. <em>Andy</em>) and pick what to assign.</p>
+
+            <label class="input-label" for="assign-name">Student Name</label>
+            <input id="assign-name" class="text-input" type="text"
+                   placeholder="Andy" maxlength="30" autocomplete="off" />
+
+            <label class="input-label">Topics (pick one or more)</label>
+            <div id="assign-topics" class="chip-list"></div>
+
+            <label class="input-label" for="assign-count">Questions per assignment</label>
+            <select id="assign-count" class="select-input">
+              <option value="5">5</option>
+              <option value="10" selected>10</option>
+              <option value="15">15</option>
+              <option value="20">20</option>
+            </select>
+
+            <label class="input-label" for="assign-notes">Notes (optional)</label>
+            <input id="assign-notes" class="text-input" type="text"
+                   placeholder="e.g. Practice before Friday's quiz" maxlength="120" />
+
+            <button id="assign-btn" class="btn btn-primary">Create Assignment</button>
+          </div>
+
+          <div class="card">
+            <h3 class="card-title">Student Roster</h3>
+            <input id="student-filter" class="text-input" type="text"
+                   placeholder="Filter by name…" autocomplete="off" />
+            <div id="student-list" class="student-list"></div>
+          </div>
+        </div>
+
+        <div class="students-right">
+          <div id="student-detail" class="card student-detail">
+            <div class="empty-state">
+              <p>Select a student on the left to see their history, wrong answers, and assignments.</p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ── ALL RESULTS ── -->
+    <section id="tab-results" class="tab-panel">
+      <div class="panel-header">
+        <div>
+          <h2>All Results</h2>
+          <p>Every quiz attempt, newest first. Filter by student name.</p>
+        </div>
+        <button id="clear-results-btn" class="btn btn-danger-ghost">Clear All</button>
+      </div>
+
+      <div class="results-filter-row">
+        <input id="results-name-filter" class="text-input" type="text"
+               placeholder="Filter by student name…" autocomplete="off" />
+      </div>
+
       <div id="summary-cards" class="summary-cards"></div>
 
-      <!-- Results Table -->
       <div class="table-wrap">
         <table id="results-table" class="results-table">
           <thead>
@@ -124,7 +183,7 @@
             </tr>
           </thead>
           <tbody id="results-tbody">
-            <tr><td colspan="6" class="loading">Loading results...</td></tr>
+            <tr><td colspan="6" class="loading">Loading…</td></tr>
           </tbody>
         </table>
       </div>

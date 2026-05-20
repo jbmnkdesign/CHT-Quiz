@@ -3,108 +3,142 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Learn Chinese 學中文</title>
+  <title>Chinese Quiz · 學中文</title>
   <link rel="stylesheet" href="quiz.css" />
 </head>
 <body>
 
-  <!-- WELCOME SCREEN -->
-  <div id="welcome-screen" class="screen active">
-    <header class="hero-header">
-      <div class="hero-title">
-        <span class="hero-emoji">🐼</span>
-        <h1>Learn Chinese!<br /><span class="zh">學中文</span></h1>
-        <p class="hero-sub">HSK1 · TOCFL Sprout &amp; Growth Level</p>
+  <!-- ─── WELCOME ─── -->
+  <section id="welcome-screen" class="screen active">
+    <header class="brand-header">
+      <div class="brand">
+        <span class="brand-mark">學</span>
+        <div class="brand-text">
+          <h1>Chinese Quiz</h1>
+          <p>學中文 · HSK1 / TOCFL</p>
+        </div>
       </div>
     </header>
 
-    <main class="welcome-main">
-      <div class="card welcome-card">
+    <main class="container">
+      <div class="card">
+        <h2 class="card-title">Welcome 歡迎</h2>
+        <p class="card-sub">Enter your name to see what your teacher assigned you, or start free practice.</p>
+
         <label class="input-label" for="student-name">Your Name 你的名字</label>
         <input id="student-name" class="text-input" type="text"
-               placeholder="Type your name..." maxlength="30" autocomplete="off" />
+               placeholder="e.g. Andy" maxlength="30" autocomplete="off" />
 
-        <label class="input-label" for="topic-select">Choose a Topic 選主題</label>
+        <button id="continue-btn" class="btn btn-primary" disabled>
+          Continue 繼續
+        </button>
+      </div>
+    </main>
+  </section>
+
+  <!-- ─── ASSIGNMENT PICKER ─── -->
+  <section id="picker-screen" class="screen">
+    <header class="brand-header thin">
+      <div class="brand">
+        <span class="brand-mark">學</span>
+        <div class="brand-text">
+          <h1>Hello, <span id="picker-name">Student</span></h1>
+        </div>
+      </div>
+      <button id="change-name-btn" class="link-btn">Not you? Change name</button>
+    </header>
+
+    <main class="container">
+
+      <div id="assignment-section" class="card hidden">
+        <h2 class="card-title">Your Assignments 老師指派</h2>
+        <p class="card-sub">Tasks your teacher set for you. Tap one to start.</p>
+        <div id="assignment-list" class="assignment-list"></div>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">Free Practice 自由練習</h2>
+        <p class="card-sub">Choose any topic to practice on your own.</p>
+
+        <label class="input-label" for="topic-select">Topic 主題</label>
         <select id="topic-select" class="select-input">
-          <option value="all">🌟 All Topics</option>
+          <option value="all">All Topics</option>
         </select>
 
-        <label class="input-label" for="count-select">Number of Questions</label>
+        <label class="input-label" for="count-select">Questions 題數</label>
         <select id="count-select" class="select-input">
           <option value="5">5 questions</option>
           <option value="10" selected>10 questions</option>
           <option value="15">15 questions</option>
         </select>
 
-        <button id="start-btn" class="btn btn-primary" disabled>
-          Start Quiz! 開始測驗 🚀
+        <button id="start-practice-btn" class="btn btn-primary">
+          Start Practice 開始
         </button>
       </div>
     </main>
-  </div>
+  </section>
 
-  <!-- QUIZ SCREEN -->
-  <div id="quiz-screen" class="screen">
+  <!-- ─── QUIZ ─── -->
+  <section id="quiz-screen" class="screen">
     <header class="quiz-header">
-      <div class="progress-info">
+      <div class="quiz-meta">
         <span id="progress-label">1 / 10</span>
-        <span id="score-label">Score: 0</span>
+        <span id="score-label">Score 0</span>
       </div>
       <div class="progress-bar-wrap">
         <div id="progress-bar" class="progress-bar"></div>
       </div>
     </header>
 
-    <main class="quiz-main">
-      <div id="question-card" class="card question-card">
-
-        <!-- Question visual area -->
+    <main class="container">
+      <div class="card question-card">
         <div id="question-visual" class="question-visual"></div>
-
-        <!-- Question text -->
         <p id="question-text" class="question-text"></p>
-
-        <!-- Feedback banner -->
         <div id="feedback-banner" class="feedback-banner hidden"></div>
-
-        <!-- Options grid -->
         <div id="options-grid" class="options-grid"></div>
-
-        <!-- Next button -->
-        <button id="next-btn" class="btn btn-primary hidden">
-          Next ➡️
-        </button>
+        <button id="next-btn" class="btn btn-primary hidden">Next 下一題</button>
       </div>
     </main>
-  </div>
+  </section>
 
-  <!-- RESULTS SCREEN -->
-  <div id="results-screen" class="screen">
-    <header class="hero-header">
-      <div class="hero-title">
-        <span id="result-emoji" class="hero-emoji">🌟</span>
-        <h1 id="result-message">Great job!</h1>
+  <!-- ─── RESULTS ─── -->
+  <section id="results-screen" class="screen">
+    <header class="brand-header thin">
+      <div class="brand">
+        <span class="brand-mark">學</span>
+        <div class="brand-text">
+          <h1 id="result-title">Result 測驗結果</h1>
+        </div>
       </div>
     </header>
 
-    <main class="results-main">
-      <div class="card results-card">
+    <main class="container">
+      <div class="card">
         <div class="score-display">
-          <div class="score-circle">
+          <div id="score-circle" class="score-circle">
             <span id="score-percent">0%</span>
           </div>
           <p id="score-detail" class="score-detail"></p>
-        </div>
-
-        <div id="result-breakdown" class="result-breakdown"></div>
-
-        <div class="results-actions">
-          <button id="retry-btn" class="btn btn-primary">Try Again 再試一次</button>
-          <button id="change-topic-btn" class="btn btn-secondary">Change Topic 換主題</button>
+          <p id="result-message" class="result-message"></p>
         </div>
       </div>
+
+      <div class="card">
+        <h2 class="card-title">Your Answers 你的作答</h2>
+        <div class="breakdown-tabs">
+          <button class="tab-btn active" data-bd-tab="all">All</button>
+          <button class="tab-btn" data-bd-tab="wrong">Wrong only ❌</button>
+        </div>
+        <div id="result-breakdown" class="result-breakdown"></div>
+      </div>
+
+      <div class="results-actions">
+        <button id="retry-btn" class="btn btn-primary">Try Again 再試一次</button>
+        <button id="back-btn" class="btn btn-secondary">Back to Menu 回主畫面</button>
+      </div>
     </main>
-  </div>
+  </section>
 
   <script src="quiz.js"></script>
 </body>

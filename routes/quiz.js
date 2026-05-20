@@ -21,8 +21,10 @@ router.get('/questions', async (req, res) => {
     let questions = await read('questions');
 
     if (topic && topic !== 'all') {
-      questions = questions.filter(
-        q => q.topic.toLowerCase() === topic.toLowerCase()
+      // Support comma-separated multi-topic queries (e.g. ?topic=Travel,Food)
+      const topicList = topic.split(',').map(t => t.trim().toLowerCase());
+      questions = questions.filter(q =>
+        topicList.includes(q.topic.toLowerCase())
       );
     }
 
@@ -34,9 +36,24 @@ router.get('/questions', async (req, res) => {
   }
 });
 
+// Get pending assignment(s) for a specific student name (case-insensitive)
+router.get('/assignment/:studentName', async (req, res) => {
+  try {
+    const name = req.params.studentName.trim().toLowerCase();
+    const assignments = await read('assignments');
+    const matches = assignments
+      .filter(a => a.studentName && a.studentName.toLowerCase() === name)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    res.json(matches);
+  } catch (err) {
+    console.error('GET /assignment error:', err);
+    res.status(500).json({ error: 'Failed to load assignment' });
+  }
+});
+
 router.post('/results', async (req, res) => {
   try {
-    const { studentName, topic, score, total, answers, duration } = req.body;
+    const { studentName, topic, score, total, answers, duration, assignmentId } = req.body;
 
     if (!studentName || score === undefined || !total) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -47,6 +64,7 @@ router.post('/results', async (req, res) => {
       id: uuidv4(),
       studentName: studentName.trim(),
       topic: topic || 'Mixed',
+      assignmentId: assignmentId || null,
       score,
       total,
       percentage: Math.round((score / total) * 100),
