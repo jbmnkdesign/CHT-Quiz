@@ -113,4 +113,19 @@ async function chatWithAI(message, conversationHistory) {
   return response.text;
 }
 
-module.exports = { chatWithAI };
+// Generic single-turn Gemini call for non-quiz tasks (e.g. zhuyin backfill).
+// Caller supplies its own systemInstruction so the quiz teacher persona is bypassed.
+async function generateText(prompt, systemInstruction) {
+  const response = await client.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    config: {
+      systemInstruction: systemInstruction || 'You are a helpful assistant.',
+      maxOutputTokens: 8192,
+      temperature: 0.2
+    }
+  });
+  return response.text;
+}
+
+module.exports = { chatWithAI, generateText };

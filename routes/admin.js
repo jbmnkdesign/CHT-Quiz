@@ -1,8 +1,24 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { read, write } = require('../utils/database');
+const { generateText } = require('../utils/aiHelper');
 
 const router = express.Router();
+
+const ZHUYIN_SYSTEM = `You are a Chinese phonetics expert. Convert Traditional Chinese words with pinyin into zhuyin (注音符號 / Bopomofo).
+
+Rules:
+- Use a SPACE between each syllable
+- Tone marks: 1st = no mark, 2nd = ˊ, 3rd = ˇ, 4th = ˋ, neutral = ˙ before the syllable
+- Examples:
+  - 媽 mā → ㄇㄚ
+  - 馬 mǎ → ㄇㄚˇ
+  - 謝謝 xièxiè → ㄒㄧㄝˋ ㄒㄧㄝˋ
+  - 學校 xuéxiào → ㄒㄩㄝˊ ㄒㄧㄠˋ
+  - 桌子 zhuōzi → ㄓㄨㄛ ˙ㄗ
+  - 對不起 duìbuqǐ → ㄉㄨㄟˋ ˙ㄅㄨ ㄑㄧˇ
+
+Respond ONLY with a JSON object — no markdown fences, no surrounding text.`;
 
 /* ────────────────────────── QUESTIONS ────────────────────────── */
 
@@ -91,6 +107,85 @@ router.delete('/topics/:name', async (req, res) => {
   } catch (err) {
     console.error('DELETE /admin/topics error:', err);
     res.status(500).json({ error: 'Failed to delete topic' });
+  }
+});
+
+// One-shot AI backfill: scan all questions, find words missing zhuyin, ask Gemini for them in batch
+router.post('/backfill-zhuyin', async (req, res) => {
+  try {
+    const questions = await read('questions');
+
+    // Collect unique words that need zhuyin
+    const missing = new Map();
+    const collect = (w) => {
+      if (!w || w.zhuyin) return;
+      const key = (w.chinese || '') + '|' + (w.pinyin || '');
+      if (!missing.has(key) && w.chinese && w.pinyin) {
+        missing.set(key, { chinese: w.chinese, pinyin: w.pinyin });
+      }
+    };
+    for (const q of questions) {
+      collect(q.answer);
+      for (const opt of (q.options || [])) collect(opt);
+    }
+
+    if (missing.size === 0) {
+      return res.json({ success: true, scanned: questions.length, missing: 0, updated: 0 });
+    }
+
+    const wordList = [...missing.values()];
+    const prompt = `Convert each of these Traditional Chinese words to zhuyin. Return ONLY a JSON object whose keys are exactly "chinese|pinyin" and values are the zhuyin string.
+
+Words:
+${wordList.map(w => `${w.chinese} (${w.pinyin})`).join('\n')}
+
+Expected response shape (no other text):
+{
+  "貓|māo": "ㄇㄚ",
+  "謝謝|xièxiè": "ㄒㄧㄝˋ ㄒㄧㄝˋ"
+}`;
+
+    const aiText = await generateText(prompt, ZHUYIN_SYSTEM);
+
+    // Parse JSON object out of the response
+    let mapping = {};
+    const jsonMatch = aiText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      return res.status(500).json({ error: 'AI returned no parseable JSON' });
+    }
+    try {
+      mapping = JSON.parse(jsonMatch[0]);
+    } catch (e) {
+      return res.status(500).json({ error: 'AI JSON parse failed: ' + e.message });
+    }
+
+    // Apply mapping back to all questions
+    let updatedFields = 0;
+    const apply = (w) => {
+      if (!w || w.zhuyin) return;
+      const key = (w.chinese || '') + '|' + (w.pinyin || '');
+      if (mapping[key]) {
+        w.zhuyin = mapping[key];
+        updatedFields++;
+      }
+    };
+    for (const q of questions) {
+      apply(q.answer);
+      for (const opt of (q.options || [])) apply(opt);
+    }
+
+    await write('questions', questions);
+
+    res.json({
+      success: true,
+      scanned: questions.length,
+      uniqueMissing: missing.size,
+      mapped: Object.keys(mapping).length,
+      updatedFields
+    });
+  } catch (err) {
+    console.error('POST /admin/backfill-zhuyin error:', err);
+    res.status(500).json({ error: 'Failed to backfill zhuyin: ' + err.message });
   }
 });
 

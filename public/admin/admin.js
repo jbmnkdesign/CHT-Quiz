@@ -27,6 +27,7 @@ const saveQuestionsBtn = document.getElementById('save-questions-btn');
 const discardBtn       = document.getElementById('discard-btn');
 const questionsBadge   = document.getElementById('question-count-badge');
 const topicGroups      = document.getElementById('topic-groups');
+const backfillZhuyinBtn = document.getElementById('backfill-zhuyin-btn');
 const summaryCards     = document.getElementById('summary-cards');
 const resultsTbody     = document.getElementById('results-tbody');
 const clearResultsBtn  = document.getElementById('clear-results-btn');
@@ -56,6 +57,7 @@ async function init() {
   discardBtn.addEventListener('click', discardPreview);
   clearResultsBtn.addEventListener('click', clearResults);
   resultsNameFilter.addEventListener('input', renderResults);
+  backfillZhuyinBtn.addEventListener('click', backfillZhuyin);
 
   assignBtn.addEventListener('click', createAssignment);
   studentFilter.addEventListener('input', renderStudentList);
@@ -335,6 +337,33 @@ async function deleteTopic(name, count) {
     await loadQuestions();
   } catch {
     alert('Failed to delete topic.');
+  }
+}
+
+async function backfillZhuyin() {
+  if (!confirm('Scan the question bank and use AI to add 注音 to every word missing it?\n\nThis runs once and may take 10-30 seconds depending on how many words need updating.')) return;
+
+  const originalLabel = backfillZhuyinBtn.textContent;
+  backfillZhuyinBtn.disabled = true;
+  backfillZhuyinBtn.textContent = 'Working…';
+
+  try {
+    const res  = await fetch('/api/admin/backfill-zhuyin', { method: 'POST' });
+    const data = await res.json();
+
+    if (!res.ok || data.error) {
+      alert('Backfill failed: ' + (data.error || 'unknown error'));
+    } else if (data.uniqueMissing === 0) {
+      alert('All questions already have 注音 — nothing to do.');
+    } else {
+      alert(`Done. Scanned ${data.scanned} questions, added 注音 to ${data.updatedFields} word slot${data.updatedFields !== 1 ? 's' : ''} (${data.mapped} unique words).`);
+      await loadQuestions();
+    }
+  } catch (err) {
+    alert('Backfill failed: ' + err.message);
+  } finally {
+    backfillZhuyinBtn.disabled = false;
+    backfillZhuyinBtn.textContent = originalLabel;
   }
 }
 
