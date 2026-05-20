@@ -221,6 +221,14 @@ async function loadQuestions() {
 function renderTopicGroups() {
   questionsBadge.textContent = state.questions.length + ' questions';
 
+  // Show the 注音 backfill button only if at least one word in the bank still
+  // lacks zhuyin. Once the bank is fully covered, the button disappears.
+  const needsBackfill = state.questions.some(q => {
+    if (q.answer && !q.answer.zhuyin) return true;
+    return (q.options || []).some(opt => !opt.zhuyin);
+  });
+  backfillZhuyinBtn.style.display = needsBackfill ? '' : 'none';
+
   if (state.questions.length === 0) {
     topicGroups.innerHTML = `
       <div class="empty-state">
@@ -680,7 +688,7 @@ function renderResults() {
   renderSummary(computeSummary(shown), displayName);
 
   if (shown.length === 0) {
-    resultsTbody.innerHTML = `<tr><td colspan="6" class="loading">${filter ? `No results for "${escapeHtml(filterRaw)}" yet.` : 'No results yet.'}</td></tr>`;
+    resultsTbody.innerHTML = `<tr><td colspan="7" class="loading">${filter ? `No results for "${escapeHtml(filterRaw)}" yet.` : 'No results yet.'}</td></tr>`;
     return;
   }
 
@@ -697,8 +705,31 @@ function renderResults() {
       <td><span class="score-pill ${pillClass}">${r.percentage}%</span></td>
       <td>${duration}</td>
       <td title="${timeStr}">${dateStr}</td>
+      <td><button class="row-delete" data-rid="${escapeHtml(r.id)}" title="Delete this record">✕</button></td>
     </tr>`;
   }).join('');
+
+  resultsTbody.querySelectorAll('.row-delete').forEach(btn => {
+    btn.addEventListener('click', () => deleteOneResult(btn.dataset.rid));
+  });
+}
+
+async function deleteOneResult(id) {
+  const target = state.results.find(r => r.id === id);
+  const label = target ? `${target.studentName} · ${target.topic} (${target.percentage}%)` : 'this record';
+  if (!confirm(`Delete ${label}?`)) return;
+  try {
+    const res = await fetch(`/api/admin/results/${id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert('Failed: ' + (data.error || 'unknown error'));
+      return;
+    }
+    state.results = state.results.filter(r => r.id !== id);
+    renderResults();
+  } catch (err) {
+    alert('Failed: ' + err.message);
+  }
 }
 
 async function clearResults() {

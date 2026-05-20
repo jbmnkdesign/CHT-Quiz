@@ -772,10 +772,31 @@ body {
 .hidden { display: none !important; }
 
 /* ─── Responsive ─── */
-@media (max-width: 400px) {
+html, body { overflow-x: hidden; max-width: 100%; }
+
+* { word-wrap: break-word; overflow-wrap: anywhere; }
+
+img, svg { max-width: 100%; height: auto; }
+
+@media (max-width: 600px) {
+  .brand-header { padding: 36px 18px 60px; }
+  .brand-header.thin { padding: 26px 18px 48px; }
+  .container { padding: 0 14px 36px; }
+  .card { padding: 22px 18px; }
+  .options-grid { gap: 8px; }
+  .option-card { padding: 12px 8px 10px; }
   .opt-chinese { font-size: 1.85rem; }
-  .question-chinese-big { font-size: 2.7rem; }
-  .question-emoji { font-size: 4.5rem; }
-  .brand-mark { width: 46px; height: 46px; font-size: 1.45rem; }
+  .opt-english-big { font-size: 1.3rem; }
+  .question-chinese-big { font-size: 2.6rem; }
+  .question-emoji { font-size: 4.4rem; }
+  .question-english-big { font-size: 2rem; }
+  .link-btn { top: 12px; right: 12px; font-size: 0.78rem; padding: 6px 11px; }
+}
+
+@media (max-width: 400px) {
+  .brand-mark { width: 50px; height: 50px; font-size: 1.55rem; }
   .brand-text h1 { font-size: 1.25rem; }
+  .opt-chinese { font-size: 1.65rem; }
+  .question-chinese-big { font-size: 2.3rem; }
+  .opt-english-big { font-size: 1.15rem; }
 }

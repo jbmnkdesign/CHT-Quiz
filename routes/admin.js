@@ -20,6 +20,66 @@ Rules:
 
 Respond ONLY with a JSON object — no markdown fences, no surrounding text.`;
 
+// Scan a question array, ask Gemini for zhuyin on any word missing it, mutate in place.
+// Returns { uniqueMissing, mapped, updatedFields }
+async function fillMissingZhuyin(questions) {
+  const missing = new Map();
+  const collect = (w) => {
+    if (!w || w.zhuyin) return;
+    const key = (w.chinese || '') + '|' + (w.pinyin || '');
+    if (!missing.has(key) && w.chinese && w.pinyin) {
+      missing.set(key, { chinese: w.chinese, pinyin: w.pinyin });
+    }
+  };
+  for (const q of questions) {
+    collect(q.answer);
+    for (const opt of (q.options || [])) collect(opt);
+  }
+
+  if (missing.size === 0) {
+    return { uniqueMissing: 0, mapped: 0, updatedFields: 0 };
+  }
+
+  const wordList = [...missing.values()];
+  const prompt = `Convert each of these Traditional Chinese words to zhuyin. Return ONLY a JSON object whose keys are exactly "chinese|pinyin" and values are the zhuyin string.
+
+Words:
+${wordList.map(w => `${w.chinese} (${w.pinyin})`).join('\n')}
+
+Expected response shape (no other text):
+{
+  "貓|māo": "ㄇㄚ",
+  "謝謝|xièxiè": "ㄒㄧㄝˋ ㄒㄧㄝˋ"
+}`;
+
+  const aiText = await generateText(prompt, ZHUYIN_SYSTEM);
+  let mapping = {};
+  const jsonMatch = aiText.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    try { mapping = JSON.parse(jsonMatch[0]); } catch { /* keep empty */ }
+  }
+
+  let updatedFields = 0;
+  const apply = (w) => {
+    if (!w || w.zhuyin) return;
+    const key = (w.chinese || '') + '|' + (w.pinyin || '');
+    if (mapping[key]) {
+      w.zhuyin = mapping[key];
+      updatedFields++;
+    }
+  };
+  for (const q of questions) {
+    apply(q.answer);
+    for (const opt of (q.options || [])) apply(opt);
+  }
+
+  return {
+    uniqueMissing: missing.size,
+    mapped: Object.keys(mapping).length,
+    updatedFields
+  };
+}
+
 /* ────────────────────────── QUESTIONS ────────────────────────── */
 
 router.get('/questions', async (req, res) => {
@@ -44,6 +104,14 @@ router.post('/questions', async (req, res) => {
       ...q,
       createdAt: new Date().toISOString()
     }));
+
+    // Safety net: AI is supposed to include zhuyin in every word, but if it
+    // slips up we silently fill in the missing values before saving.
+    try {
+      await fillMissingZhuyin(newQuestions);
+    } catch (e) {
+      console.warn('Zhuyin auto-fill failed during save, continuing without it:', e.message);
+    }
 
     await write('questions', [...existing, ...newQuestions]);
     res.json({ success: true, count: newQuestions.length, questions: newQuestions });
@@ -110,78 +178,23 @@ router.delete('/topics/:name', async (req, res) => {
   }
 });
 
-// One-shot AI backfill: scan all questions, find words missing zhuyin, ask Gemini for them in batch
+// One-shot AI backfill button on the admin page. Uses the same helper as the
+// auto-fill safety net inside POST /questions.
 router.post('/backfill-zhuyin', async (req, res) => {
   try {
     const questions = await read('questions');
+    const result = await fillMissingZhuyin(questions);
 
-    // Collect unique words that need zhuyin
-    const missing = new Map();
-    const collect = (w) => {
-      if (!w || w.zhuyin) return;
-      const key = (w.chinese || '') + '|' + (w.pinyin || '');
-      if (!missing.has(key) && w.chinese && w.pinyin) {
-        missing.set(key, { chinese: w.chinese, pinyin: w.pinyin });
-      }
-    };
-    for (const q of questions) {
-      collect(q.answer);
-      for (const opt of (q.options || [])) collect(opt);
+    if (result.updatedFields > 0) {
+      await write('questions', questions);
     }
-
-    if (missing.size === 0) {
-      return res.json({ success: true, scanned: questions.length, missing: 0, updated: 0 });
-    }
-
-    const wordList = [...missing.values()];
-    const prompt = `Convert each of these Traditional Chinese words to zhuyin. Return ONLY a JSON object whose keys are exactly "chinese|pinyin" and values are the zhuyin string.
-
-Words:
-${wordList.map(w => `${w.chinese} (${w.pinyin})`).join('\n')}
-
-Expected response shape (no other text):
-{
-  "貓|māo": "ㄇㄚ",
-  "謝謝|xièxiè": "ㄒㄧㄝˋ ㄒㄧㄝˋ"
-}`;
-
-    const aiText = await generateText(prompt, ZHUYIN_SYSTEM);
-
-    // Parse JSON object out of the response
-    let mapping = {};
-    const jsonMatch = aiText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return res.status(500).json({ error: 'AI returned no parseable JSON' });
-    }
-    try {
-      mapping = JSON.parse(jsonMatch[0]);
-    } catch (e) {
-      return res.status(500).json({ error: 'AI JSON parse failed: ' + e.message });
-    }
-
-    // Apply mapping back to all questions
-    let updatedFields = 0;
-    const apply = (w) => {
-      if (!w || w.zhuyin) return;
-      const key = (w.chinese || '') + '|' + (w.pinyin || '');
-      if (mapping[key]) {
-        w.zhuyin = mapping[key];
-        updatedFields++;
-      }
-    };
-    for (const q of questions) {
-      apply(q.answer);
-      for (const opt of (q.options || [])) apply(opt);
-    }
-
-    await write('questions', questions);
 
     res.json({
       success: true,
       scanned: questions.length,
-      uniqueMissing: missing.size,
-      mapped: Object.keys(mapping).length,
-      updatedFields
+      uniqueMissing: result.uniqueMissing,
+      mapped: result.mapped,
+      updatedFields: result.updatedFields
     });
   } catch (err) {
     console.error('POST /admin/backfill-zhuyin error:', err);
@@ -416,6 +429,22 @@ router.delete('/results', async (req, res) => {
   } catch (err) {
     console.error('DELETE /admin/results error:', err);
     res.status(500).json({ error: 'Failed to clear results' });
+  }
+});
+
+// Delete a single result by id
+router.delete('/results/:id', async (req, res) => {
+  try {
+    const results = await read('results');
+    const next = results.filter(r => r.id !== req.params.id);
+    if (next.length === results.length) {
+      return res.status(404).json({ error: 'Result not found' });
+    }
+    await write('results', next);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('DELETE /admin/results/:id error:', err);
+    res.status(500).json({ error: 'Failed to delete result' });
   }
 });
 
