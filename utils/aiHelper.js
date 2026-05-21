@@ -144,6 +144,12 @@ async function generateImage(prompt) {
     throw new Error('Hugging Face auth failed — HF_TOKEN is not set');
   }
 
+  // Random seed on every call — without it FLUX.1-schnell tends to return
+  // the same composition for the same prompt (and HF's request cache will
+  // happily serve a previous response when the body matches exactly).
+  // Passing a fresh seed both varies the output and busts the cache.
+  const seed = Math.floor(Math.random() * 2_147_483_647);
+
   let res;
   try {
     res = await fetch(HF_IMAGE_ENDPOINT, {
@@ -151,10 +157,15 @@ async function generateImage(prompt) {
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: 'image/jpeg',
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        // Belt-and-braces: explicitly opt out of HF's response cache.
+        'x-use-cache': 'false'
       },
       // schnell is distilled for ~1–4 steps; 4 gives the best quality/speed.
-      body: JSON.stringify({ inputs: prompt, parameters: { num_inference_steps: 4 } })
+      body: JSON.stringify({
+        inputs: prompt,
+        parameters: { num_inference_steps: 4, seed }
+      })
     });
   } catch (e) {
     // Surface the underlying socket / DNS / TLS reason instead of the bare
