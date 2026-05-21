@@ -48,7 +48,7 @@ const scorePercent   = document.getElementById('score-percent');
 const scoreDetail    = document.getElementById('score-detail');
 const resultMessage  = document.getElementById('result-message');
 const resultBreakdown = document.getElementById('result-breakdown');
-const breakdownTabs  = document.querySelectorAll('.tab-btn[data-bd-tab]');
+const breakdownTabs  = document.querySelectorAll('#breakdown-tabs .nav-link');
 
 /* ─── Init ─── */
 async function init() {
@@ -78,14 +78,13 @@ async function init() {
   await loadTopics();
 }
 
-/* ─── Step 1: Welcome → Picker ─── */
+/* ─── Welcome → Picker ─── */
 async function goToPicker() {
   const name = nameInput.value.trim();
   if (!name) return;
   state.studentName = name;
   pickerName.textContent = name;
 
-  // Fetch assignments for this student
   await loadAssignments(name);
   showScreen('picker');
 }
@@ -102,18 +101,18 @@ async function loadAssignments(name) {
 
 function renderAssignments() {
   if (!state.assignments || state.assignments.length === 0) {
-    assignmentSection.classList.add('hidden');
+    assignmentSection.classList.add('d-none');
     return;
   }
 
-  assignmentSection.classList.remove('hidden');
+  assignmentSection.classList.remove('d-none');
   assignmentList.innerHTML = '';
   state.assignments.forEach(a => {
     const div = document.createElement('div');
     div.className = 'assignment-item';
     const date = new Date(a.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     div.innerHTML = `
-      <div class="assignment-info">
+      <div class="flex-grow-1">
         <div class="assignment-topics">${escapeHtml(a.topics.join(' · '))}</div>
         <div class="assignment-meta">${a.questionCount} questions · assigned ${date}${a.notes ? ' · ' + escapeHtml(a.notes) : ''}</div>
       </div>
@@ -133,12 +132,10 @@ async function loadTopics() {
       opt.value = t; opt.textContent = t;
       topicSelect.appendChild(opt);
     });
-  } catch {
-    // Empty topics, will show only "All Topics"
-  }
+  } catch { /* silent */ }
 }
 
-/* ─── Step 2: Start Quiz ─── */
+/* ─── Launch quiz ─── */
 async function startAssignment(assignment) {
   state.topic = assignment.topics.join(',');
   state.questionCount = assignment.questionCount || 10;
@@ -177,7 +174,7 @@ async function launchQuiz() {
   }
 }
 
-/* ─── Quiz flow ─── */
+/* ─── Question rendering ─── */
 function showQuestion(index) {
   const q = state.questions[index];
   state.questionStartTime = Date.now();
@@ -186,8 +183,8 @@ function showQuestion(index) {
   scoreLabel.textContent    = `Score ${state.score}`;
   progressBar.style.width   = `${(index / state.questions.length) * 100}%`;
 
-  feedbackBanner.className = 'feedback-banner hidden';
-  nextBtn.classList.add('hidden');
+  feedbackBanner.className = 'feedback-banner d-none';
+  nextBtn.classList.add('d-none');
 
   if (q.type === 'word_to_meaning') {
     questionVisual.innerHTML = `
@@ -202,14 +199,20 @@ function showQuestion(index) {
         <span class="question-english-big">${escapeHtml(q.answer.english)}</span>
       </div>`;
   } else {
-    questionVisual.innerHTML = `<span class="question-emoji">${q.emoji || '📖'}</span>`;
+    // image_to_word: show uploaded image if present, else emoji
+    if (q.imageUrl) {
+      questionVisual.innerHTML = `<img class="question-image" src="${escapeAttr(q.imageUrl)}" alt="" />`;
+    } else {
+      questionVisual.innerHTML = `<span class="question-emoji">${q.emoji || '📖'}</span>`;
+    }
   }
 
   questionText.textContent = q.question_en;
 
-  // Option cards: render different fields depending on what's being asked.
-  // For word_to_meaning the prompt already shows the Chinese, so the options
-  // must only reveal English — otherwise students just match characters.
+  // Options rendering depends on question type:
+  // word_to_meaning → show only English (Chinese is in the prompt, would be a cheat)
+  // meaning_to_word → show Chinese + phonetics (English is in the prompt)
+  // image_to_word   → show full card
   optionsGrid.innerHTML = '';
   q.options.forEach((opt, i) => {
     const card = document.createElement('div');
@@ -218,7 +221,6 @@ function showQuestion(index) {
       card.classList.add('option-card-english');
       card.innerHTML = `<span class="opt-english-big">${escapeHtml(opt.english)}</span>`;
     } else {
-      // image_to_word and meaning_to_word: show full Chinese + phonetics
       card.innerHTML = `
         <span class="opt-chinese">${escapeHtml(opt.chinese)}</span>
         <span class="opt-pinyin">${escapeHtml(opt.pinyin)}</span>
@@ -266,7 +268,7 @@ function handleAnswer(selectedIndex) {
     : `✗ Answer: ${q.answer.chinese} (${phon}) = ${q.answer.english}`;
 
   scoreLabel.textContent = `Score ${state.score}`;
-  nextBtn.classList.remove('hidden');
+  nextBtn.classList.remove('d-none');
   nextBtn.textContent = state.currentIndex < state.questions.length - 1
     ? 'Next 下一題' : 'See Results 看結果';
 }
@@ -289,7 +291,6 @@ async function showResults() {
 
   scorePercent.textContent = pct + '%';
   scoreDetail.textContent  = `${state.score} of ${state.questions.length} correct`;
-
   scoreCircle.className = 'score-circle ' + (pct >= 80 ? 'high' : pct >= 50 ? 'mid' : 'low');
 
   let msg;
@@ -320,9 +321,7 @@ async function showResults() {
         duration
       })
     });
-  } catch {
-    // Non-critical
-  }
+  } catch { /* non-critical */ }
 }
 
 function renderBreakdown() {
@@ -331,7 +330,7 @@ function renderBreakdown() {
     : state.answers;
 
   if (rows.length === 0) {
-    resultBreakdown.innerHTML = `<div style="text-align:center;color:var(--muted);padding:20px;font-size:0.9rem">No items.</div>`;
+    resultBreakdown.innerHTML = `<div class="text-center text-muted py-3">No items.</div>`;
     return;
   }
 
@@ -350,9 +349,7 @@ function renderBreakdown() {
   });
 }
 
-function retryQuiz() {
-  launchQuiz();
-}
+function retryQuiz() { launchQuiz(); }
 
 /* ─── Helpers ─── */
 function showScreen(name) {
@@ -372,6 +369,7 @@ function escapeHtml(str) {
   if (typeof str !== 'string') return String(str || '');
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+function escapeAttr(str) { return escapeHtml(str); }
 
 /* ─── Start ─── */
 init();

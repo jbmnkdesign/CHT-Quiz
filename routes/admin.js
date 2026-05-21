@@ -132,6 +132,44 @@ router.delete('/questions/:id', async (req, res) => {
   }
 });
 
+// Edit an existing question — caller sends the full updated question body.
+// Runs zhuyin auto-fill if any words are missing it.
+router.patch('/questions/:id', async (req, res) => {
+  try {
+    const update = req.body;
+    if (!update || typeof update !== 'object') {
+      return res.status(400).json({ error: 'Invalid update body' });
+    }
+
+    const questions = await read('questions');
+    const idx = questions.findIndex(q => q.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'Question not found' });
+
+    const original = questions[idx];
+    const merged = {
+      ...original,
+      ...update,
+      id: original.id,
+      createdAt: original.createdAt,
+      updatedAt: new Date().toISOString()
+    };
+
+    // Safety net: fill any missing zhuyin via AI before saving
+    try {
+      await fillMissingZhuyin([merged]);
+    } catch (e) {
+      console.warn('Zhuyin auto-fill failed during edit:', e.message);
+    }
+
+    questions[idx] = merged;
+    await write('questions', questions);
+    res.json({ success: true, question: merged });
+  } catch (err) {
+    console.error('PATCH /admin/questions/:id error:', err);
+    res.status(500).json({ error: 'Failed to update question' });
+  }
+});
+
 /* ────────────────────────── TOPICS ────────────────────────── */
 
 // Rename a topic across ALL questions

@@ -11,7 +11,9 @@ const state = {
   assignTopicsPicked:  new Set(),
   selectedStudent:     null,
   studentDetail:       null,
-  expandedTopics:      new Set()
+  expandedTopics:      new Set(),
+  editingQuestion:     null,
+  formImageDataUrl:    null
 };
 
 /* ─── DOM ─── */
@@ -27,7 +29,8 @@ const saveQuestionsBtn = document.getElementById('save-questions-btn');
 const discardBtn       = document.getElementById('discard-btn');
 const questionsBadge   = document.getElementById('question-count-badge');
 const topicGroups      = document.getElementById('topic-groups');
-const backfillZhuyinBtn = document.getElementById('backfill-zhuyin-btn');
+const backfillBtn      = document.getElementById('backfill-zhuyin-btn');
+const addQuestionBtn   = document.getElementById('add-question-btn');
 const summaryCards     = document.getElementById('summary-cards');
 const resultsTbody     = document.getElementById('results-tbody');
 const clearResultsBtn  = document.getElementById('clear-results-btn');
@@ -41,6 +44,20 @@ const assignBtn        = document.getElementById('assign-btn');
 const studentFilter    = document.getElementById('student-filter');
 const studentList      = document.getElementById('student-list');
 const studentDetailBox = document.getElementById('student-detail');
+
+const questionModalEl  = document.getElementById('questionModal');
+const questionModal    = new bootstrap.Modal(questionModalEl);
+const fqTitle          = document.getElementById('questionModalTitle');
+const fqTopic          = document.getElementById('fq-topic');
+const fqTopicSuggest   = document.getElementById('topic-suggestions');
+const fqType           = document.getElementById('fq-type');
+const fqQuestion       = document.getElementById('fq-question');
+const fqEmoji          = document.getElementById('fq-emoji');
+const fqImageUrl       = document.getElementById('fq-image-url');
+const fqImageFile      = document.getElementById('fq-image-file');
+const fqImagePreview   = document.getElementById('fq-image-preview');
+const fqOptionsWrap    = document.getElementById('fq-options');
+const fqSave           = document.getElementById('fq-save');
 
 /* ─── Init ─── */
 async function init() {
@@ -57,21 +74,41 @@ async function init() {
   discardBtn.addEventListener('click', discardPreview);
   clearResultsBtn.addEventListener('click', clearResults);
   resultsNameFilter.addEventListener('input', renderResults);
-  backfillZhuyinBtn.addEventListener('click', backfillZhuyin);
+  backfillBtn.addEventListener('click', backfillZhuyin);
+  addQuestionBtn.addEventListener('click', () => openQuestionModal(null));
 
   assignBtn.addEventListener('click', createAssignment);
   studentFilter.addEventListener('input', renderStudentList);
 
+  // Question form interactions
+  fqImageUrl.addEventListener('input', () => {
+    if (fqImageUrl.value.trim()) {
+      state.formImageDataUrl = null;
+      fqImageFile.value = '';
+    }
+    renderImagePreview();
+  });
+  fqEmoji.addEventListener('input', renderImagePreview);
+  fqImageFile.addEventListener('change', handleImageFileSelect);
+  fqSave.addEventListener('click', saveQuestionForm);
+
   await Promise.all([loadQuestions(), loadStudents()]);
 }
 
-/* ─── Tab navigation ─── */
+/* ─── Tabs ─── */
 function switchTab(tab) {
   state.activeTab = tab;
   navBtns.forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tab));
   document.querySelectorAll('.tab-panel').forEach(p =>
     p.classList.toggle('active', p.id === `tab-${tab}`)
   );
+
+  // Close mobile offcanvas after picking a tab
+  const off = document.getElementById('sidebarOff');
+  if (off && window.innerWidth < 992) {
+    const inst = bootstrap.Offcanvas.getInstance(off);
+    if (inst) inst.hide();
+  }
 
   if (tab === 'questions') loadQuestions();
   if (tab === 'students')  loadStudents();
@@ -161,9 +198,12 @@ function showPreview(questions) {
   questions.forEach(q => {
     const div = document.createElement('div');
     div.className = 'preview-q';
+    const visual = q.imageUrl
+      ? `<img class="preview-q-image" src="${escapeAttr(q.imageUrl)}" alt="" />`
+      : `<span class="preview-q-emoji">${q.emoji || '📖'}</span>`;
     div.innerHTML = `
       <div class="preview-q-header">
-        <span class="preview-q-emoji">${q.emoji || '📖'}</span>
+        ${visual}
         <span class="preview-q-topic">${escapeHtml(q.topic)}</span>
         <span class="preview-q-type">${formatType(q.type)}</span>
       </div>
@@ -176,17 +216,16 @@ function showPreview(questions) {
     previewList.appendChild(div);
   });
 
-  previewPanel.classList.remove('hidden');
+  previewPanel.classList.remove('d-none');
 }
 
 function discardPreview() {
   state.pendingQuestions = null;
-  previewPanel.classList.add('hidden');
+  previewPanel.classList.add('d-none');
 }
 
 async function saveGeneratedQuestions() {
   if (!state.pendingQuestions) return;
-
   try {
     const res = await fetch('/api/admin/questions', {
       method: 'POST',
@@ -194,7 +233,6 @@ async function saveGeneratedQuestions() {
       body: JSON.stringify({ questions: state.pendingQuestions })
     });
     const data = await res.json();
-
     if (data.success) {
       appendBubble('ai', `Saved ${data.count} questions to the bank.`);
       discardPreview();
@@ -205,7 +243,7 @@ async function saveGeneratedQuestions() {
   }
 }
 
-/* ─── QUESTION BANK (grouped by topic) ─── */
+/* ─── QUESTION BANK ─── */
 async function loadQuestions() {
   try {
     const res = await fetch('/api/admin/questions');
@@ -213,26 +251,26 @@ async function loadQuestions() {
     state.topics = [...new Set(state.questions.map(q => q.topic))].sort();
     renderTopicGroups();
     renderAssignTopicPicker();
+    refreshTopicDatalist();
   } catch {
-    topicGroups.innerHTML = '<div class="loading">Failed to load questions.</div>';
+    topicGroups.innerHTML = '<div class="text-muted text-center py-4">Failed to load questions.</div>';
   }
 }
 
 function renderTopicGroups() {
   questionsBadge.textContent = state.questions.length + ' questions';
 
-  // Show the 注音 backfill button only if at least one word in the bank still
-  // lacks zhuyin. Once the bank is fully covered, the button disappears.
+  // Auto-hide the backfill button when every word already has zhuyin
   const needsBackfill = state.questions.some(q => {
     if (q.answer && !q.answer.zhuyin) return true;
     return (q.options || []).some(opt => !opt.zhuyin);
   });
-  backfillZhuyinBtn.style.display = needsBackfill ? '' : 'none';
+  backfillBtn.classList.toggle('d-none', !needsBackfill);
 
   if (state.questions.length === 0) {
     topicGroups.innerHTML = `
       <div class="empty-state">
-        <p>No questions yet. Use the AI Generator tab to create some.</p>
+        <p>No questions yet. Use AI Generator or click <strong>+ Add Question</strong> to create some.</p>
       </div>`;
     return;
   }
@@ -244,32 +282,39 @@ function renderTopicGroups() {
   });
 
   topicGroups.innerHTML = '';
-  Object.keys(grouped).sort().forEach(topic => {
+  Object.keys(grouped).sort().forEach((topic, gIndex) => {
     const items = grouped[topic];
+    const safeTopicId = 'topic-' + gIndex + '-' + Math.random().toString(36).slice(2, 7);
     const isOpen = state.expandedTopics.has(topic);
 
-    const group = document.createElement('div');
-    group.className = 'topic-group' + (isOpen ? ' open' : '');
-    group.innerHTML = `
-      <div class="topic-group-header">
-        <div class="topic-title-row">
-          <span class="topic-caret">▶</span>
-          <span class="topic-name">${escapeHtml(topic)}</span>
-          <span class="topic-count">· ${items.length} question${items.length !== 1 ? 's' : ''}</span>
-        </div>
+    const item = document.createElement('div');
+    item.className = 'accordion-item';
+    item.innerHTML = `
+      <div class="accordion-header" id="head-${safeTopicId}">
+        <button class="accordion-button ${isOpen ? '' : 'collapsed'}" type="button"
+                data-bs-toggle="collapse" data-bs-target="#body-${safeTopicId}"
+                aria-expanded="${isOpen}" aria-controls="body-${safeTopicId}">
+          <span class="me-2">${escapeHtml(topic)}</span>
+          <span class="topic-count">${items.length} 題</span>
+        </button>
         <div class="topic-actions">
-          <button class="icon-btn" data-action="rename">Rename</button>
-          <button class="icon-btn danger" data-action="delete">Delete</button>
+          <button class="icon-btn" data-action="rename" type="button">Rename</button>
+          <button class="icon-btn danger" data-action="delete" type="button">Delete</button>
         </div>
       </div>
-      <div class="topic-group-body"></div>`;
+      <div id="body-${safeTopicId}" class="accordion-collapse collapse ${isOpen ? 'show' : ''}">
+        <div class="accordion-body"></div>
+      </div>`;
 
-    const body = group.querySelector('.topic-group-body');
+    const body = item.querySelector('.accordion-body');
     items.forEach(q => {
       const row = document.createElement('div');
       row.className = 'q-row';
+      const visual = q.imageUrl
+        ? `<span class="q-visual"><img src="${escapeAttr(q.imageUrl)}" alt="" /></span>`
+        : `<span class="q-visual">${q.emoji || '📖'}</span>`;
       row.innerHTML = `
-        <span class="q-emoji">${q.emoji || '📖'}</span>
+        ${visual}
         <div class="q-answer">
           <span class="q-chinese">${escapeHtml(q.answer.chinese)}</span>
           <span class="q-pinyin">${escapeHtml(q.answer.pinyin)}</span>
@@ -277,33 +322,36 @@ function renderTopicGroups() {
           <span class="q-english">${escapeHtml(q.answer.english)}</span>
         </div>
         <span class="q-type-tag">${formatType(q.type)}</span>
-        <button class="q-delete" title="Delete">✕</button>`;
-      row.querySelector('.q-delete').addEventListener('click', e => {
+        <div class="q-row-actions">
+          <button class="icon-btn" data-edit type="button" title="Edit">✎</button>
+          <button class="icon-btn danger" data-del type="button" title="Delete">✕</button>
+        </div>`;
+      row.querySelector('[data-edit]').addEventListener('click', e => {
+        e.stopPropagation();
+        openQuestionModal(q);
+      });
+      row.querySelector('[data-del]').addEventListener('click', e => {
         e.stopPropagation();
         deleteQuestion(q.id);
       });
       body.appendChild(row);
     });
 
-    // Header click toggles
-    const header = group.querySelector('.topic-group-header');
-    header.addEventListener('click', e => {
-      if (e.target.closest('.topic-actions')) return;
-      if (state.expandedTopics.has(topic)) state.expandedTopics.delete(topic);
-      else state.expandedTopics.add(topic);
-      renderTopicGroups();
-    });
+    // Track expand state
+    const collapseEl = item.querySelector('.accordion-collapse');
+    collapseEl.addEventListener('shown.bs.collapse', () => state.expandedTopics.add(topic));
+    collapseEl.addEventListener('hidden.bs.collapse', () => state.expandedTopics.delete(topic));
 
-    group.querySelector('[data-action="rename"]').addEventListener('click', e => {
+    item.querySelector('[data-action="rename"]').addEventListener('click', e => {
       e.stopPropagation();
       renameTopic(topic);
     });
-    group.querySelector('[data-action="delete"]').addEventListener('click', e => {
+    item.querySelector('[data-action="delete"]').addEventListener('click', e => {
       e.stopPropagation();
       deleteTopic(topic, items.length);
     });
 
-    topicGroups.appendChild(group);
+    topicGroups.appendChild(item);
   });
 }
 
@@ -312,9 +360,7 @@ async function deleteQuestion(id) {
   try {
     await fetch(`/api/admin/questions/${id}`, { method: 'DELETE' });
     await loadQuestions();
-  } catch {
-    alert('Failed to delete question.');
-  }
+  } catch { alert('Failed to delete question.'); }
 }
 
 async function renameTopic(oldName) {
@@ -332,46 +378,230 @@ async function renameTopic(oldName) {
       state.expandedTopics.add(newName.trim());
       await loadQuestions();
     }
-  } catch {
-    alert('Failed to rename topic.');
-  }
+  } catch { alert('Failed to rename topic.'); }
 }
 
 async function deleteTopic(name, count) {
-  if (!confirm(`Delete the entire "${name}" topic and ALL ${count} of its questions? This cannot be undone.`)) return;
+  if (!confirm(`Delete the entire "${name}" topic and ALL ${count} of its questions?`)) return;
   try {
     await fetch(`/api/admin/topics/${encodeURIComponent(name)}`, { method: 'DELETE' });
     state.expandedTopics.delete(name);
     await loadQuestions();
-  } catch {
-    alert('Failed to delete topic.');
-  }
+  } catch { alert('Failed to delete topic.'); }
 }
 
 async function backfillZhuyin() {
-  if (!confirm('Scan the question bank and use AI to add 注音 to every word missing it?\n\nThis runs once and may take 10-30 seconds depending on how many words need updating.')) return;
-
-  const originalLabel = backfillZhuyinBtn.textContent;
-  backfillZhuyinBtn.disabled = true;
-  backfillZhuyinBtn.textContent = 'Working…';
-
+  if (!confirm('Scan the question bank and use AI to add 注音 to every word missing it?')) return;
+  const orig = backfillBtn.textContent;
+  backfillBtn.disabled = true;
+  backfillBtn.textContent = 'Working…';
   try {
     const res  = await fetch('/api/admin/backfill-zhuyin', { method: 'POST' });
     const data = await res.json();
-
     if (!res.ok || data.error) {
       alert('Backfill failed: ' + (data.error || 'unknown error'));
     } else if (data.uniqueMissing === 0) {
-      alert('All questions already have 注音 — nothing to do.');
+      alert('All questions already have 注音.');
     } else {
-      alert(`Done. Scanned ${data.scanned} questions, added 注音 to ${data.updatedFields} word slot${data.updatedFields !== 1 ? 's' : ''} (${data.mapped} unique words).`);
+      alert(`Done. Added 注音 to ${data.updatedFields} word slot(s) (${data.mapped} unique words).`);
       await loadQuestions();
     }
   } catch (err) {
     alert('Backfill failed: ' + err.message);
   } finally {
-    backfillZhuyinBtn.disabled = false;
-    backfillZhuyinBtn.textContent = originalLabel;
+    backfillBtn.disabled = false;
+    backfillBtn.textContent = orig;
+  }
+}
+
+/* ─── QUESTION FORM MODAL ─── */
+function openQuestionModal(question) {
+  state.editingQuestion = question;
+  state.formImageDataUrl = null;
+
+  fqTitle.textContent = question ? 'Edit Question' : 'Add Question';
+  refreshTopicDatalist();
+
+  if (question) {
+    fqTopic.value = question.topic || '';
+    fqType.value = question.type || 'image_to_word';
+    fqQuestion.value = question.question_en || '';
+    fqEmoji.value = question.emoji || '';
+    fqImageUrl.value = (question.imageUrl && !question.imageUrl.startsWith('data:')) ? question.imageUrl : '';
+    state.formImageDataUrl = (question.imageUrl && question.imageUrl.startsWith('data:')) ? question.imageUrl : null;
+    fqImageFile.value = '';
+    renderOptionRows(question.options || []);
+  } else {
+    fqTopic.value = '';
+    fqType.value = 'image_to_word';
+    fqQuestion.value = '';
+    fqEmoji.value = '';
+    fqImageUrl.value = '';
+    fqImageFile.value = '';
+    renderOptionRows([]);
+  }
+  renderImagePreview();
+  questionModal.show();
+}
+
+function refreshTopicDatalist() {
+  fqTopicSuggest.innerHTML = '';
+  state.topics.forEach(t => {
+    const o = document.createElement('option');
+    o.value = t;
+    fqTopicSuggest.appendChild(o);
+  });
+}
+
+function renderOptionRows(opts) {
+  fqOptionsWrap.innerHTML = '';
+  for (let i = 0; i < 4; i++) {
+    const o = opts[i] || { chinese: '', pinyin: '', zhuyin: '', english: '' };
+    const row = document.createElement('div');
+    row.className = 'option-row' + (i === 0 ? ' correct' : '');
+    row.innerHTML = `
+      <span class="opt-tag" title="${i === 0 ? 'Correct answer' : 'Wrong option'}">${i === 0 ? '✓' : i + 1}</span>
+      <input class="form-control form-control-sm opt-chinese-input" placeholder="繁體 Chinese" value="${escapeAttr(o.chinese)}" />
+      <input class="form-control form-control-sm opt-pinyin-input"  placeholder="pinyin"     value="${escapeAttr(o.pinyin)}" />
+      <input class="form-control form-control-sm opt-zhuyin-input"  placeholder="注音 (auto)" value="${escapeAttr(o.zhuyin)}" />
+      <input class="form-control form-control-sm opt-english-input opt-english-field" placeholder="English" value="${escapeAttr(o.english)}" />`;
+    fqOptionsWrap.appendChild(row);
+  }
+}
+
+function renderImagePreview() {
+  const url = state.formImageDataUrl || fqImageUrl.value.trim();
+  const emoji = fqEmoji.value.trim();
+  fqImagePreview.innerHTML = '';
+  if (url) {
+    fqImagePreview.innerHTML = `<img src="${escapeAttr(url)}" alt="" /><span class="vp-hint">${state.formImageDataUrl ? 'Uploaded file (compressed, embedded inline).' : 'From URL.'}</span>`;
+  } else if (emoji) {
+    fqImagePreview.innerHTML = `<span class="vp-emoji">${escapeHtml(emoji)}</span><span class="vp-hint">Emoji preview.</span>`;
+  } else {
+    fqImagePreview.innerHTML = `<span class="vp-hint">Enter an emoji, paste an image URL, or upload a file.</span>`;
+  }
+}
+
+async function handleImageFileSelect() {
+  const file = fqImageFile.files[0];
+  if (!file) return;
+  if (file.size > 4 * 1024 * 1024) {
+    alert('File too large (max 4 MB). Please use a smaller image.');
+    fqImageFile.value = '';
+    return;
+  }
+  try {
+    const dataUrl = await compressImage(file, 600);
+    state.formImageDataUrl = dataUrl;
+    fqImageUrl.value = ''; // file overrides URL
+    renderImagePreview();
+  } catch (err) {
+    alert('Could not process image: ' + err.message);
+    fqImageFile.value = '';
+  }
+}
+
+function compressImage(file, maxDim) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let { width, height } = img;
+        if (width > height && width > maxDim) {
+          height = Math.round(height * (maxDim / width));
+          width = maxDim;
+        } else if (height > maxDim) {
+          width = Math.round(width * (maxDim / height));
+          height = maxDim;
+        }
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      };
+      img.onerror = () => reject(new Error('Image decode failed'));
+      img.src = reader.result;
+    };
+    reader.onerror = () => reject(new Error('File read failed'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function collectFormData() {
+  const optionRows = fqOptionsWrap.querySelectorAll('.option-row');
+  const options = [...optionRows].map(row => ({
+    chinese: row.querySelector('.opt-chinese-input').value.trim(),
+    pinyin:  row.querySelector('.opt-pinyin-input').value.trim(),
+    zhuyin:  row.querySelector('.opt-zhuyin-input').value.trim(),
+    english: row.querySelector('.opt-english-input').value.trim()
+  }));
+
+  // Image source priority: uploaded file > URL > none (use emoji)
+  const imageUrl = state.formImageDataUrl || fqImageUrl.value.trim() || '';
+
+  return {
+    topic:        fqTopic.value.trim(),
+    type:         fqType.value,
+    question_en:  fqQuestion.value.trim(),
+    emoji:        fqEmoji.value.trim(),
+    imageUrl,
+    answer:       options[0],
+    options,
+    correctIndex: 0
+  };
+}
+
+function validateFormData(d) {
+  if (!d.topic) return 'Topic is required.';
+  if (!d.question_en) return 'English prompt is required.';
+  if (d.type === 'image_to_word' && !d.imageUrl && !d.emoji) {
+    return 'Picture-type questions need either an emoji, image URL, or uploaded image.';
+  }
+  for (let i = 0; i < 4; i++) {
+    const o = d.options[i];
+    if (!o.chinese || !o.pinyin || !o.english) {
+      return `Option ${i + 1} is incomplete — Chinese, Pinyin, and English are all required.`;
+    }
+  }
+  return null;
+}
+
+async function saveQuestionForm() {
+  const data = collectFormData();
+  const err = validateFormData(data);
+  if (err) { alert(err); return; }
+
+  fqSave.disabled = true;
+  fqSave.textContent = 'Saving…';
+
+  try {
+    const editing = state.editingQuestion;
+    const url = editing ? `/api/admin/questions/${editing.id}` : '/api/admin/questions';
+    const method = editing ? 'PATCH' : 'POST';
+    const body = editing ? data : { questions: [data] };
+
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const result = await res.json();
+
+    if (!res.ok || result.error) {
+      alert('Failed: ' + (result.error || 'unknown error'));
+      return;
+    }
+
+    questionModal.hide();
+    if (data.topic && !state.expandedTopics.has(data.topic)) state.expandedTopics.add(data.topic);
+    await loadQuestions();
+  } catch (e) {
+    alert('Failed to save: ' + e.message);
+  } finally {
+    fqSave.disabled = false;
+    fqSave.textContent = 'Save';
   }
 }
 
@@ -387,19 +617,14 @@ async function loadStudents() {
 
     renderStudentList();
     populateTargetStudentDropdown();
-
-    // Re-render currently selected detail to reflect changes
-    if (state.selectedStudent) {
-      loadStudentDetail(state.selectedStudent);
-    }
+    if (state.selectedStudent) loadStudentDetail(state.selectedStudent);
   } catch {
-    studentList.innerHTML = '<div class="loading">Failed to load students.</div>';
+    studentList.innerHTML = '<div class="text-muted text-center py-3">Failed to load students.</div>';
   }
 }
 
 function populateTargetStudentDropdown() {
   const current = targetStudent.value;
-  // Clear all options except the first ("Anyone")
   while (targetStudent.options.length > 1) targetStudent.remove(1);
   state.students.forEach(s => {
     const opt = document.createElement('option');
@@ -407,17 +632,14 @@ function populateTargetStudentDropdown() {
     opt.textContent = s.name + (s.averageScore !== null ? ` (avg ${s.averageScore}%)` : ' (new)');
     targetStudent.appendChild(opt);
   });
-  if (current && state.students.some(s => s.name === current)) {
-    targetStudent.value = current;
-  }
+  if (current && state.students.some(s => s.name === current)) targetStudent.value = current;
 }
 
 function renderAssignTopicPicker() {
   if (state.topics.length === 0) {
-    assignTopics.innerHTML = '<span class="chip-empty">No topics yet — generate some questions first via AI Generator.</span>';
+    assignTopics.innerHTML = '<span class="chip-empty">No topics yet — generate or add some questions first.</span>';
     return;
   }
-
   assignTopics.innerHTML = '';
   state.topics.forEach(t => {
     const chip = document.createElement('span');
@@ -450,19 +672,15 @@ async function createAssignment() {
     });
     const data = await res.json();
     if (data.success) {
-      assignName.value = '';
-      assignNotes.value = '';
+      assignName.value = ''; assignNotes.value = '';
       state.assignTopicsPicked.clear();
       renderAssignTopicPicker();
       await loadStudents();
-      // Auto-select the just-assigned student
       const match = state.students.find(s => s.name.toLowerCase() === name.toLowerCase());
       if (match) selectStudent(match.name);
       alert(`Assignment created for ${data.assignment.studentName}.`);
     }
-  } catch {
-    alert('Failed to create assignment.');
-  }
+  } catch { alert('Failed to create assignment.'); }
 }
 
 function renderStudentList() {
@@ -472,7 +690,7 @@ function renderStudentList() {
     : state.students;
 
   if (shown.length === 0) {
-    studentList.innerHTML = `<div class="empty-state" style="padding:20px"><p>${filter ? 'No matching students.' : 'No students yet.'}</p></div>`;
+    studentList.innerHTML = `<div class="text-muted small p-3 text-center">${filter ? 'No matching students.' : 'No students yet.'}</div>`;
     return;
   }
 
@@ -483,7 +701,6 @@ function renderStudentList() {
     const pillClass = s.averageScore === null ? '' :
       s.averageScore >= 80 ? 'high' : s.averageScore >= 50 ? 'mid' : 'low';
     const pillText = s.averageScore === null ? 'new' : `${s.averageScore}%`;
-
     row.innerHTML = `
       <div>
         <div class="student-name">${escapeHtml(s.name)}</div>
@@ -502,13 +719,13 @@ async function selectStudent(name) {
 }
 
 async function loadStudentDetail(name) {
-  studentDetailBox.innerHTML = '<div class="loading">Loading…</div>';
+  studentDetailBox.innerHTML = '<div class="card-body"><div class="text-muted text-center py-4">Loading…</div></div>';
   try {
     const res = await fetch(`/api/admin/students/${encodeURIComponent(name)}`);
     state.studentDetail = await res.json();
     renderStudentDetail();
   } catch {
-    studentDetailBox.innerHTML = '<div class="empty-state">Failed to load student details.</div>';
+    studentDetailBox.innerHTML = '<div class="card-body"><div class="empty-state">Failed to load student details.</div></div>';
   }
 }
 
@@ -520,35 +737,33 @@ function renderStudentDetail() {
   const avg = totalTests === 0 ? null :
     Math.round(d.results.reduce((s, r) => s + r.percentage, 0) / totalTests);
 
-  let html = `
+  let html = `<div class="card-body">
     <h3>${escapeHtml(d.name)}</h3>
     <p class="detail-sub">${totalTests} test${totalTests !== 1 ? 's' : ''} taken${avg !== null ? ` · average ${avg}%` : ''}</p>`;
 
-  // Active assignments
   html += `<div class="detail-section">
     <h4>Active Assignments (${d.assignments.length})</h4>`;
   if (d.assignments.length === 0) {
-    html += '<p style="font-size:0.85rem;color:var(--muted)">No assignments yet.</p>';
+    html += '<p class="text-muted small">No assignments yet.</p>';
   } else {
     d.assignments.forEach(a => {
       const date = new Date(a.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       html += `
         <div class="assignment-card">
-          <div class="ac-info">
+          <div class="flex-grow-1">
             <div class="ac-topics">${escapeHtml(a.topics.join(' · '))}</div>
             <div class="ac-meta">${a.questionCount} questions · ${date}${a.notes ? ' · ' + escapeHtml(a.notes) : ''}</div>
           </div>
-          <button class="icon-btn danger" data-aid="${escapeHtml(a.id)}">Remove</button>
+          <button class="icon-btn danger" type="button" data-aid="${escapeHtml(a.id)}">Remove</button>
         </div>`;
     });
   }
   html += '</div>';
 
-  // Wrong answers
   html += `<div class="detail-section">
     <h4>Most-Missed Words (${d.wrongAnswers.length})</h4>`;
   if (d.wrongAnswers.length === 0) {
-    html += '<p style="font-size:0.85rem;color:var(--muted)">No wrong answers — nice work!</p>';
+    html += '<p class="text-muted small">No wrong answers — nice work!</p>';
   } else {
     html += '<div class="wrong-word-list">';
     d.wrongAnswers.slice(0, 15).forEach(w => {
@@ -563,17 +778,16 @@ function renderStudentDetail() {
         </div>`;
     });
     if (d.wrongAnswers.length > 15) {
-      html += `<p style="font-size:0.78rem;color:var(--muted);margin-top:6px">+ ${d.wrongAnswers.length - 15} more</p>`;
+      html += `<p class="text-muted small mt-2">+ ${d.wrongAnswers.length - 15} more</p>`;
     }
     html += '</div>';
   }
   html += '</div>';
 
-  // Test history
   html += `<div class="detail-section">
     <h4>Test History (${d.results.length})</h4>`;
   if (d.results.length === 0) {
-    html += '<p style="font-size:0.85rem;color:var(--muted)">No test attempts yet.</p>';
+    html += '<p class="text-muted small">No test attempts yet.</p>';
   } else {
     d.results.slice(0, 20).forEach(r => {
       const date = new Date(r.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -588,11 +802,10 @@ function renderStudentDetail() {
         </div>`;
     });
   }
-  html += '</div>';
+  html += '</div></div>';
 
   studentDetailBox.innerHTML = html;
 
-  // Wire assignment-remove buttons
   studentDetailBox.querySelectorAll('[data-aid]').forEach(btn => {
     btn.addEventListener('click', () => removeAssignment(btn.dataset.aid));
   });
@@ -603,9 +816,7 @@ async function removeAssignment(aid) {
   try {
     await fetch(`/api/admin/assignments/${aid}`, { method: 'DELETE' });
     await loadStudents();
-  } catch {
-    alert('Failed to remove assignment.');
-  }
+  } catch { alert('Failed to remove assignment.'); }
 }
 
 /* ─── ALL RESULTS TAB ─── */
@@ -615,17 +826,15 @@ async function loadResults() {
     state.results = await res.json();
     renderResults();
   } catch {
-    resultsTbody.innerHTML = '<tr><td colspan="6" class="loading">Failed to load results.</td></tr>';
+    resultsTbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">Failed to load results.</td></tr>';
   }
 }
 
 function computeSummary(results) {
-  if (results.length === 0) {
-    return { totalTests: 0, averageScore: 0, topicBreakdown: {} };
-  }
+  if (results.length === 0) return { totalTests: 0, averageScore: 0, topicBreakdown: {} };
   const totalTests = results.length;
   const averageScore = Math.round(
-    results.reduce((sum, r) => sum + (r.percentage || 0), 0) / totalTests
+    results.reduce((s, r) => s + (r.percentage || 0), 0) / totalTests
   );
   const topicBreakdown = {};
   results.forEach(r => {
@@ -650,20 +859,26 @@ function renderSummary(summary, displayName) {
   const avgLabel   = displayName ? `${displayName}'s Average` : 'Average Score';
 
   let html = `
-    <div class="summary-card">
-      <span class="sc-value">${summary.totalTests}</span>
-      <div class="sc-label">${escapeHtml(testsLabel)}</div>
+    <div class="col-6 col-md-3 col-summary">
+      <div class="summary-card">
+        <span class="sc-value">${summary.totalTests}</span>
+        <div class="sc-label">${escapeHtml(testsLabel)}</div>
+      </div>
     </div>
-    <div class="summary-card">
-      <span class="sc-value">${summary.totalTests > 0 ? summary.averageScore + '%' : '—'}</span>
-      <div class="sc-label">${escapeHtml(avgLabel)}</div>
+    <div class="col-6 col-md-3 col-summary">
+      <div class="summary-card">
+        <span class="sc-value">${summary.totalTests > 0 ? summary.averageScore + '%' : '—'}</span>
+        <div class="sc-label">${escapeHtml(avgLabel)}</div>
+      </div>
     </div>`;
 
   topicList.forEach(([topic, data]) => {
     html += `
-      <div class="summary-card">
-        <span class="sc-value">${data.averageScore}%</span>
-        <div class="sc-label">${escapeHtml(topic)} avg</div>
+      <div class="col-6 col-md-3 col-summary">
+        <div class="summary-card">
+          <span class="sc-value">${data.averageScore}%</span>
+          <div class="sc-label">${escapeHtml(topic)} avg</div>
+        </div>
       </div>`;
   });
 
@@ -677,8 +892,6 @@ function renderResults() {
     ? state.results.filter(r => r.studentName && r.studentName.toLowerCase().includes(filter))
     : state.results;
 
-  // Use the matched student's actual capitalized name when exactly one unique student matches;
-  // otherwise fall back to whatever the teacher typed.
   let displayName = null;
   if (filterRaw) {
     const uniqueNames = [...new Set(shown.map(r => r.studentName))];
@@ -688,7 +901,7 @@ function renderResults() {
   renderSummary(computeSummary(shown), displayName);
 
   if (shown.length === 0) {
-    resultsTbody.innerHTML = `<tr><td colspan="7" class="loading">${filter ? `No results for "${escapeHtml(filterRaw)}" yet.` : 'No results yet.'}</td></tr>`;
+    resultsTbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">${filter ? `No results for "${escapeHtml(filterRaw)}" yet.` : 'No results yet.'}</td></tr>`;
     return;
   }
 
@@ -697,7 +910,6 @@ function renderResults() {
     const dateStr   = new Date(r.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     const timeStr   = new Date(r.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     const duration  = r.duration ? formatDuration(r.duration) : '—';
-
     return `<tr>
       <td><strong>${escapeHtml(r.studentName)}</strong></td>
       <td>${escapeHtml(r.topic)}</td>
@@ -705,7 +917,7 @@ function renderResults() {
       <td><span class="score-pill ${pillClass}">${r.percentage}%</span></td>
       <td>${duration}</td>
       <td title="${timeStr}">${dateStr}</td>
-      <td><button class="row-delete" data-rid="${escapeHtml(r.id)}" title="Delete this record">✕</button></td>
+      <td><button class="row-delete" data-rid="${escapeHtml(r.id)}" type="button" title="Delete">✕</button></td>
     </tr>`;
   }).join('');
 
@@ -727,9 +939,7 @@ async function deleteOneResult(id) {
     }
     state.results = state.results.filter(r => r.id !== id);
     renderResults();
-  } catch (err) {
-    alert('Failed: ' + err.message);
-  }
+  } catch (err) { alert('Failed: ' + err.message); }
 }
 
 async function clearResults() {
@@ -738,9 +948,7 @@ async function clearResults() {
     await fetch('/api/admin/results', { method: 'DELETE' });
     await loadResults();
     await loadStudents();
-  } catch {
-    alert('Failed to clear results.');
-  }
+  } catch { alert('Failed to clear results.'); }
 }
 
 /* ─── Helpers ─── */
@@ -758,6 +966,7 @@ function escapeHtml(str) {
   if (typeof str !== 'string') return String(str || '');
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+function escapeAttr(str) { return escapeHtml(str); }
 
 /* ─── Start ─── */
 init();

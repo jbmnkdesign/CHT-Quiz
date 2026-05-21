@@ -11,7 +11,8 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(express.json());
+// Bumped from default 100kb so admin can save questions with embedded base64 image uploads
+app.use(express.json({ limit: '4mb' }));
 
 app.use('/student', express.static(path.join(__dirname, 'public/student')));
 app.use('/admin', express.static(path.join(__dirname, 'public/admin')));
