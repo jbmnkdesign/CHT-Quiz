@@ -304,6 +304,32 @@ router.post('/restore-seed', async (req, res) => {
   }
 });
 
+// Replace every seed-ID row in the bank with its current canonical
+// definition from seedData (options reshuffled). Non-seed questions added
+// by the teacher are untouched. Use this after the seed evolves so old
+// caches catch up — restore-seed alone only inserts missing ids.
+router.post('/resync-seed', async (req, res) => {
+  try {
+    const existing = await read('questions');
+    const seedMap = new Map(seedQuestions.map(q => [q.id, q]));
+    const userQuestions = existing.filter(q => !seedMap.has(q.id));
+    const canonical = seedQuestions.map(q =>
+      shuffleQuestionOptions(JSON.parse(JSON.stringify(q)))
+    );
+    const next = [...userQuestions, ...canonical];
+    await write('questions', next);
+    res.json({
+      success: true,
+      total: next.length,
+      seedRows: canonical.length,
+      preservedUserRows: userQuestions.length
+    });
+  } catch (err) {
+    console.error('POST /admin/resync-seed error:', err);
+    res.status(500).json({ error: 'Failed to resync seed: ' + err.message });
+  }
+});
+
 // Strip emoji + imageUrl from non-picture questions. The visual is only
 // rendered for image_to_word in the list, so leaving stale data on
 // word_to_meaning / meaning_to_word rows is just clutter on disk.

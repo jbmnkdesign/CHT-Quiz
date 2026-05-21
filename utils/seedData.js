@@ -76,7 +76,19 @@ const W = {
   chair:      { chinese: '椅子',     pinyin: 'yǐzi',      zhuyin: 'ㄧˇ ˙ㄗ',       english: 'chair' },
   bed:        { chinese: '床',       pinyin: 'chuáng',    zhuyin: 'ㄔㄨㄤˊ',        english: 'bed' },
   door:       { chinese: '門',       pinyin: 'mén',       zhuyin: 'ㄇㄣˊ',          english: 'door' },
-  window:     { chinese: '窗戶',     pinyin: 'chuānghu',  zhuyin: 'ㄔㄨㄤ ˙ㄏㄨ',   english: 'window' }
+  window:     { chinese: '窗戶',     pinyin: 'chuānghu',  zhuyin: 'ㄔㄨㄤ ˙ㄏㄨ',   english: 'window' },
+
+  // Emotions
+  happy:      { chinese: '高興',     pinyin: 'gāoxìng',   zhuyin: 'ㄍㄠ ㄒㄧㄥˋ',    english: 'happy' },
+  sad:        { chinese: '難過',     pinyin: 'nánguò',    zhuyin: 'ㄋㄢˊ ㄍㄨㄛˋ',   english: 'sad' },
+  angry:      { chinese: '生氣',     pinyin: 'shēngqì',   zhuyin: 'ㄕㄥ ㄑㄧˋ',      english: 'angry' },
+  afraid:     { chinese: '害怕',     pinyin: 'hàipà',     zhuyin: 'ㄏㄞˋ ㄆㄚˋ',     english: 'afraid' },
+  tired:      { chinese: '累',       pinyin: 'lèi',       zhuyin: 'ㄌㄟˋ',           english: 'tired' },
+  hungry:     { chinese: '餓',       pinyin: 'è',         zhuyin: 'ㄜˋ',             english: 'hungry' },
+  cry:        { chinese: '哭',       pinyin: 'kū',        zhuyin: 'ㄎㄨ',            english: 'cry' },
+  laugh:      { chinese: '笑',       pinyin: 'xiào',      zhuyin: 'ㄒㄧㄠˋ',         english: 'laugh' },
+  nervous:    { chinese: '緊張',     pinyin: 'jǐnzhāng',  zhuyin: 'ㄐㄧㄣˇ ㄓㄤ',    english: 'nervous' },
+  glad:       { chinese: '開心',     pinyin: 'kāixīn',    zhuyin: 'ㄎㄞ ㄒㄧㄣ',     english: 'glad' }
 };
 
 // Helper to build a question concisely.
@@ -167,7 +179,19 @@ const seedQuestions = [
   Q('seed-057', 'Daily Life', 'word_to_meaning', '🟫', 'What does this word mean?',     'table',     ['table','chair','bed','window']),
   Q('seed-058', 'Daily Life', 'image_to_word',   '🛏️', 'What furniture is this?',       'bed',       ['bed','chair','table','door']),
   Q('seed-059', 'Daily Life', 'meaning_to_word', '🚪', "How do you say 'door'?",         'door',      ['door','window','table','chair']),
-  Q('seed-060', 'Daily Life', 'word_to_meaning', '🪟', 'What does this word mean?',     'window',    ['window','door','bed','table'])
+  Q('seed-060', 'Daily Life', 'word_to_meaning', '🪟', 'What does this word mean?',     'window',    ['window','door','bed','table']),
+
+  /* ────── Emotions (10) ────── */
+  Q('seed-061', 'Emotions', 'image_to_word',   '😊', 'How does this person feel?',          'happy',   ['happy','sad','angry','afraid']),
+  Q('seed-062', 'Emotions', 'word_to_meaning', '😢', 'What does this word mean?',           'sad',     ['sad','happy','tired','angry']),
+  Q('seed-063', 'Emotions', 'meaning_to_word', '😠', "How do you say 'angry'?",             'angry',   ['angry','afraid','hungry','glad']),
+  Q('seed-064', 'Emotions', 'image_to_word',   '😨', 'How does this person feel?',          'afraid',  ['afraid','nervous','sad','angry']),
+  Q('seed-065', 'Emotions', 'meaning_to_word', '😴', "How do you say 'tired'?",             'tired',   ['tired','hungry','sad','nervous']),
+  Q('seed-066', 'Emotions', 'word_to_meaning', '🍽️', 'What does this word mean?',          'hungry',  ['hungry','tired','glad','afraid']),
+  Q('seed-067', 'Emotions', 'image_to_word',   '😭', 'What is this person doing?',          'cry',     ['cry','laugh','glad','nervous']),
+  Q('seed-068', 'Emotions', 'meaning_to_word', '😆', "How do you say 'laugh'?",             'laugh',   ['laugh','cry','happy','tired']),
+  Q('seed-069', 'Emotions', 'word_to_meaning', '😰', 'What does this word mean?',           'nervous', ['nervous','afraid','angry','sad']),
+  Q('seed-070', 'Emotions', 'image_to_word',   '🥳', 'How does this person feel?',          'glad',    ['glad','happy','nervous','tired'])
 ];
 
 module.exports = { seedQuestions };
