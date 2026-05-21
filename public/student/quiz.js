@@ -143,7 +143,9 @@ async function loadTopics() {
 }
 
 /* Count selector is only useful when the chosen topic has enough questions
- * to slice a smaller subset from. Below 10 questions we force "All". */
+ * to slice a smaller subset from. Below 10 questions we force "All".
+ * Above 10, the default is still "All" — students start with the full
+ * pool unless they explicitly choose a smaller number. */
 function refreshCountOptions() {
   const selected = topicSelect.value;
   let available;
@@ -154,14 +156,17 @@ function refreshCountOptions() {
     available = t ? t.count : 0;
   }
 
-  const prev = countSelect.value;
   countSelect.innerHTML = '';
 
+  // "All" is always present and is always the default — add it first so
+  // it's the initially-selected option even before we append the smaller
+  // presets below.
+  const allOpt = document.createElement('option');
+  allOpt.value = String(available || 0);
+  allOpt.textContent = `All questions (${available})`;
+  countSelect.appendChild(allOpt);
+
   if (available < 10) {
-    const opt = document.createElement('option');
-    opt.value = String(available || 0);
-    opt.textContent = `All questions (${available})`;
-    countSelect.appendChild(opt);
     countSelect.disabled = true;
   } else {
     countSelect.disabled = false;
@@ -172,17 +177,9 @@ function refreshCountOptions() {
       opt.textContent = `${n} questions`;
       countSelect.appendChild(opt);
     });
-    const allOpt = document.createElement('option');
-    allOpt.value = String(available);
-    allOpt.textContent = `All questions (${available})`;
-    countSelect.appendChild(allOpt);
-
-    // Restore previous selection where possible, otherwise default to 10.
-    if ([...countSelect.options].some(o => o.value === prev)) {
-      countSelect.value = prev;
-    } else if ([...countSelect.options].some(o => o.value === '10')) {
-      countSelect.value = '10';
-    }
+    // Explicitly re-pin the default to "All" after the appends so
+    // selectedIndex stays on the first option.
+    countSelect.value = String(available);
   }
 }
 
