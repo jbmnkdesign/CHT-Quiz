@@ -79,13 +79,15 @@ const W = {
   window:     { chinese: '窗戶',     pinyin: 'chuānghu',  zhuyin: 'ㄔㄨㄤ ˙ㄏㄨ',   english: 'window' }
 };
 
-// Helper to build a question concisely
+// Helper to build a question concisely.
+// Only image_to_word questions keep the emoji — for the other types the
+// visual is never shown, so we drop it at the source to keep the bank tidy.
 function Q(id, topic, type, emoji, question_en, ansKey, optKeys) {
   return {
     id,
     topic,
     type,
-    emoji,
+    emoji: type === 'image_to_word' ? emoji : '',
     question_en,
     answer:  W[ansKey],
     options: optKeys.map(k => W[k]),

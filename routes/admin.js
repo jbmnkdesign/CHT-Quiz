@@ -304,6 +304,26 @@ router.post('/restore-seed', async (req, res) => {
   }
 });
 
+// Strip emoji + imageUrl from non-picture questions. The visual is only
+// rendered for image_to_word in the list, so leaving stale data on
+// word_to_meaning / meaning_to_word rows is just clutter on disk.
+router.post('/strip-non-picture-visuals', async (req, res) => {
+  try {
+    const questions = await read('questions');
+    let cleared = 0;
+    for (const q of questions) {
+      if (q.type === 'image_to_word') continue;
+      if (q.emoji) { q.emoji = ''; cleared++; }
+      if (q.imageUrl) { q.imageUrl = ''; cleared++; }
+    }
+    await write('questions', questions);
+    res.json({ success: true, cleared });
+  } catch (err) {
+    console.error('POST /admin/strip-non-picture-visuals error:', err);
+    res.status(500).json({ error: 'Failed to strip visuals: ' + err.message });
+  }
+});
+
 // Reshuffle the option order for every existing question so the correct answer
 // is spread across all four positions. Idempotent (running it again just
 // re-randomises). Used to fix legacy data where correctIndex was always 0.

@@ -386,18 +386,30 @@ function renderTopicGroups() {
     const body = item.querySelector('.accordion-body');
     items.forEach(q => {
       const row = document.createElement('div');
-      const hasVisual = !!(q.imageUrl || (q.emoji && q.emoji.trim()));
+      // Only picture-type questions get a visual slot in the list; for
+      // word_to_meaning / meaning_to_word the visual is decorative noise.
+      const isPicture = q.type === 'image_to_word';
+      const hasVisual = isPicture && !!(q.imageUrl || (q.emoji && q.emoji.trim()));
       row.className = 'q-row' + (hasVisual ? '' : ' no-visual');
-      const visual = q.imageUrl
-        ? `<span class="q-visual"><img src="${escapeAttr(q.imageUrl)}" alt="" /></span>`
-        : q.emoji && q.emoji.trim()
-          ? `<span class="q-visual">${q.emoji}</span>`
-          : '';
+      const visual = !isPicture
+        ? ''
+        : q.imageUrl
+          ? `<span class="q-visual"><img src="${escapeAttr(q.imageUrl)}" alt="" /></span>`
+          : q.emoji && q.emoji.trim()
+            ? `<span class="q-visual">${q.emoji}</span>`
+            : '';
+      // Position badge makes the random correctIndex visible to the teacher
+      // at a glance (e.g. 2/4 means the correct option is the 2nd).
+      const total = Array.isArray(q.options) ? q.options.length : 4;
+      const posBadge = Number.isInteger(q.correctIndex)
+        ? `<span class="q-correct-pos" title="Correct answer position">${q.correctIndex + 1}/${total}</span>`
+        : '';
       row.innerHTML = `
         ${visual}
         <div class="q-main">
           <div class="q-prompt" title="${escapeAttr(q.question_en || '')}">${escapeHtml(q.question_en || '(no prompt)')}</div>
           <div class="q-answer">
+            ${posBadge}
             <span class="q-chinese">${escapeHtml(q.answer.chinese)}</span>
             <span class="q-pinyin">${escapeHtml(q.answer.pinyin || '')}</span>
             ${q.answer.zhuyin ? `<span class="q-zhuyin">${escapeHtml(q.answer.zhuyin)}</span>` : ''}
