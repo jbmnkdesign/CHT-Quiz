@@ -57,6 +57,7 @@ const fqEmoji          = document.getElementById('fq-emoji');
 const fqImageUrl       = document.getElementById('fq-image-url');
 const fqImageFile      = document.getElementById('fq-image-file');
 const fqImagePreview   = document.getElementById('fq-image-preview');
+const fqVisualSection  = document.getElementById('fq-visual-section');
 const fqOptionsWrap    = document.getElementById('fq-options');
 const fqSave           = document.getElementById('fq-save');
 
@@ -165,6 +166,7 @@ async function init() {
   });
   fqEmoji.addEventListener('input', renderImagePreview);
   fqImageFile.addEventListener('change', handleImageFileSelect);
+  fqType.addEventListener('change', updateVisualSectionVisibility);
   fqSave.addEventListener('click', saveQuestionForm);
 
   await Promise.all([loadQuestions(), loadStudents()]);
@@ -411,7 +413,7 @@ function renderTopicGroups() {
         </div>
         <span class="q-type-tag">${formatType(q.type)}</span>
         <div class="q-row-actions">
-          <button class="icon-btn gen-image" data-img type="button" title="Generate AI image">✨</button>
+          ${isPicture ? '<button class="icon-btn gen-image" data-img type="button" title="Generate AI image">✨</button>' : ''}
           <button class="icon-btn" data-edit type="button" title="Edit">✎</button>
           <button class="icon-btn danger" data-del type="button" title="Delete">✕</button>
         </div>`;
@@ -423,10 +425,13 @@ function renderTopicGroups() {
         e.stopPropagation();
         deleteQuestion(q.id);
       });
-      row.querySelector('[data-img]').addEventListener('click', e => {
-        e.stopPropagation();
-        generateImageForQuestion(q.id, e.currentTarget);
-      });
+      const imgBtn = row.querySelector('[data-img]');
+      if (imgBtn) {
+        imgBtn.addEventListener('click', e => {
+          e.stopPropagation();
+          generateImageForQuestion(q.id, e.currentTarget);
+        });
+      }
       body.appendChild(row);
     });
 
@@ -618,7 +623,13 @@ function openQuestionModal(question) {
     renderOptionRows([], 0);
   }
   renderImagePreview();
+  updateVisualSectionVisibility();
   questionModal.show();
+}
+
+function updateVisualSectionVisibility() {
+  const show = fqType.value === 'image_to_word';
+  fqVisualSection.classList.toggle('d-none', !show);
 }
 
 function refreshTopicDatalist() {
@@ -734,13 +745,19 @@ function collectFormData() {
   let correctIndex = optionRows.findIndex(r => r.classList.contains('correct'));
   if (correctIndex < 0) correctIndex = 0;
 
-  const imageUrl = state.formImageDataUrl || fqImageUrl.value.trim() || '';
+  const type = fqType.value;
+  // The visual fields are only meaningful for image_to_word; drop whatever
+  // is sitting in those (now-hidden) inputs when the user picked a
+  // word-based type so we don't persist stale emoji/image data.
+  const isPicture = type === 'image_to_word';
+  const imageUrl = isPicture ? (state.formImageDataUrl || fqImageUrl.value.trim() || '') : '';
+  const emoji = isPicture ? fqEmoji.value.trim() : '';
 
   return {
     topic:        fqTopic.value.trim(),
-    type:         fqType.value,
+    type,
     question_en:  fqQuestion.value.trim(),
-    emoji:        fqEmoji.value.trim(),
+    emoji,
     imageUrl,
     answer:       options[correctIndex],
     options,
