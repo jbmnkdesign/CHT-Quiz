@@ -131,8 +131,12 @@ async function generateText(prompt, systemInstruction) {
 // Generate a single illustration via Hugging Face's FLUX.1-schnell.
 // Returns a base64 `data:image/jpeg;base64,…` URL on success, or throws an
 // Error with a teacher-friendly message that the admin route surfaces in a toast.
+//
+// Note: HF retired the old api-inference.huggingface.co host in favour of
+// the Inference Providers router. The `hf-inference` path below keeps the
+// classic "POST inputs → get image bytes" contract for free-tier hosted models.
 const HF_IMAGE_ENDPOINT =
-  'https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell';
+  'https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell';
 
 async function generateImage(prompt) {
   const token = process.env.HF_TOKEN;
@@ -140,16 +144,24 @@ async function generateImage(prompt) {
     throw new Error('Hugging Face auth failed — HF_TOKEN is not set');
   }
 
-  const res = await fetch(HF_IMAGE_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: 'image/jpeg',
-      'Content-Type': 'application/json'
-    },
-    // schnell is distilled for ~1–4 steps; 4 gives the best quality/speed.
-    body: JSON.stringify({ inputs: prompt, parameters: { num_inference_steps: 4 } })
-  });
+  let res;
+  try {
+    res = await fetch(HF_IMAGE_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'image/jpeg',
+        'Content-Type': 'application/json'
+      },
+      // schnell is distilled for ~1–4 steps; 4 gives the best quality/speed.
+      body: JSON.stringify({ inputs: prompt, parameters: { num_inference_steps: 4 } })
+    });
+  } catch (e) {
+    // Surface the underlying socket / DNS / TLS reason instead of the bare
+    // "fetch failed" message that undici wraps everything in.
+    const why = e?.cause?.code || e?.cause?.message || e.message;
+    throw new Error(`Could not reach Hugging Face (${why})`);
+  }
 
   const contentType = res.headers.get('content-type') || '';
 
