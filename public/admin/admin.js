@@ -31,6 +31,7 @@ const questionsBadge   = document.getElementById('question-count-badge');
 const topicGroups      = document.getElementById('topic-groups');
 const backfillBtn      = document.getElementById('backfill-zhuyin-btn');
 const addQuestionBtn   = document.getElementById('add-question-btn');
+const restoreSeedBtn   = document.getElementById('restore-seed-btn');
 const summaryCards     = document.getElementById('summary-cards');
 const resultsTbody     = document.getElementById('results-tbody');
 const clearResultsBtn  = document.getElementById('clear-results-btn');
@@ -59,6 +60,79 @@ const fqImagePreview   = document.getElementById('fq-image-preview');
 const fqOptionsWrap    = document.getElementById('fq-options');
 const fqSave           = document.getElementById('fq-save');
 
+/* ─── Bootstrap toast / confirm helpers ─── */
+const toastContainer = document.getElementById('toastContainer');
+const confirmModalEl = document.getElementById('confirmModal');
+const confirmModal   = new bootstrap.Modal(confirmModalEl);
+const confirmTitle   = document.getElementById('confirmTitle');
+const confirmBody    = document.getElementById('confirmBody');
+const confirmOk      = document.getElementById('confirmOk');
+const confirmCancel  = document.getElementById('confirmCancel');
+
+function showToast(message, type = 'info') {
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type} align-items-center border-0`;
+  toast.setAttribute('role', 'alert');
+  toast.innerHTML = `
+    <div class="d-flex">
+      <div class="toast-body">${escapeHtml(message)}</div>
+      <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>`;
+  toastContainer.appendChild(toast);
+  const bs = new bootstrap.Toast(toast, { delay: type === 'danger' ? 6000 : 4000 });
+  bs.show();
+  toast.addEventListener('hidden.bs.toast', () => toast.remove());
+}
+
+function showConfirm({ title = 'Confirm', body, okText = 'OK', cancelText = 'Cancel', danger = false, inputDefault } = {}) {
+  return new Promise(resolve => {
+    confirmTitle.textContent = title;
+    confirmOk.textContent    = okText;
+    confirmCancel.textContent= cancelText;
+    confirmOk.className      = 'btn ' + (danger ? 'btn-outline-danger' : 'btn-primary');
+
+    // Reset body — support both plain text and text-with-input variants
+    confirmBody.innerHTML = '';
+    let inputEl = null;
+    if (body) {
+      const p = document.createElement('p');
+      p.className = 'mb-2';
+      p.textContent = body;
+      confirmBody.appendChild(p);
+    }
+    if (typeof inputDefault === 'string') {
+      inputEl = document.createElement('input');
+      inputEl.className = 'form-control';
+      inputEl.type = 'text';
+      inputEl.value = inputDefault;
+      confirmBody.appendChild(inputEl);
+      // Auto-focus + Enter submits
+      setTimeout(() => { inputEl.focus(); inputEl.select(); }, 50);
+      inputEl.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); onOk(); }
+      });
+    }
+
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      confirmOk.removeEventListener('click', onOk);
+      confirmModalEl.removeEventListener('hidden.bs.modal', onHide);
+      resolve(result);
+    };
+    const onOk = () => {
+      const value = inputEl ? inputEl.value : true;
+      confirmModal.hide();
+      finish(value);
+    };
+    const onHide = () => finish(inputEl ? null : false);
+    confirmOk.addEventListener('click', onOk);
+    confirmModalEl.addEventListener('hidden.bs.modal', onHide);
+    confirmModal.show();
+  });
+}
+
 /* ─── Init ─── */
 async function init() {
   navBtns.forEach(btn => {
@@ -76,6 +150,7 @@ async function init() {
   resultsNameFilter.addEventListener('input', renderResults);
   backfillBtn.addEventListener('click', backfillZhuyin);
   addQuestionBtn.addEventListener('click', () => openQuestionModal(null));
+  restoreSeedBtn.addEventListener('click', restoreSeed);
 
   assignBtn.addEventListener('click', createAssignment);
   studentFilter.addEventListener('input', renderStudentList);
@@ -315,14 +390,18 @@ function renderTopicGroups() {
         : `<span class="q-visual">${q.emoji || '📖'}</span>`;
       row.innerHTML = `
         ${visual}
-        <div class="q-answer">
-          <span class="q-chinese">${escapeHtml(q.answer.chinese)}</span>
-          <span class="q-pinyin">${escapeHtml(q.answer.pinyin)}</span>
-          ${q.answer.zhuyin ? `<span class="q-zhuyin">${escapeHtml(q.answer.zhuyin)}</span>` : ''}
-          <span class="q-english">${escapeHtml(q.answer.english)}</span>
+        <div class="q-main">
+          <div class="q-prompt" title="${escapeAttr(q.question_en || '')}">${escapeHtml(q.question_en || '(no prompt)')}</div>
+          <div class="q-answer">
+            <span class="q-chinese">${escapeHtml(q.answer.chinese)}</span>
+            <span class="q-pinyin">${escapeHtml(q.answer.pinyin || '')}</span>
+            ${q.answer.zhuyin ? `<span class="q-zhuyin">${escapeHtml(q.answer.zhuyin)}</span>` : ''}
+            <span class="q-english">${escapeHtml(q.answer.english)}</span>
+          </div>
         </div>
         <span class="q-type-tag">${formatType(q.type)}</span>
         <div class="q-row-actions">
+          <button class="icon-btn gen-image" data-img type="button" title="Generate AI image">✨</button>
           <button class="icon-btn" data-edit type="button" title="Edit">✎</button>
           <button class="icon-btn danger" data-del type="button" title="Delete">✕</button>
         </div>`;
@@ -333,6 +412,10 @@ function renderTopicGroups() {
       row.querySelector('[data-del]').addEventListener('click', e => {
         e.stopPropagation();
         deleteQuestion(q.id);
+      });
+      row.querySelector('[data-img]').addEventListener('click', e => {
+        e.stopPropagation();
+        generateImageForQuestion(q.id, e.currentTarget);
       });
       body.appendChild(row);
     });
@@ -356,16 +439,23 @@ function renderTopicGroups() {
 }
 
 async function deleteQuestion(id) {
-  if (!confirm('Delete this question?')) return;
+  const ok = await showConfirm({ title: 'Delete question', body: 'Remove this question from the bank?', okText: 'Delete', danger: true });
+  if (!ok) return;
   try {
     await fetch(`/api/admin/questions/${id}`, { method: 'DELETE' });
     await loadQuestions();
-  } catch { alert('Failed to delete question.'); }
+    showToast('Question deleted.', 'success');
+  } catch { showToast('Failed to delete question.', 'danger'); }
 }
 
 async function renameTopic(oldName) {
-  const newName = prompt(`Rename topic "${oldName}" to:`, oldName);
-  if (!newName || newName.trim() === oldName) return;
+  const newName = await showConfirm({
+    title: 'Rename topic',
+    body: `New name for "${oldName}":`,
+    okText: 'Rename',
+    inputDefault: oldName
+  });
+  if (!newName || newName.trim() === '' || newName.trim() === oldName) return;
   try {
     const res = await fetch('/api/admin/topics', {
       method: 'PATCH',
@@ -377,21 +467,33 @@ async function renameTopic(oldName) {
       state.expandedTopics.delete(oldName);
       state.expandedTopics.add(newName.trim());
       await loadQuestions();
+      showToast(`Renamed "${oldName}" → "${newName.trim()}".`, 'success');
     }
-  } catch { alert('Failed to rename topic.'); }
+  } catch { showToast('Failed to rename topic.', 'danger'); }
 }
 
 async function deleteTopic(name, count) {
-  if (!confirm(`Delete the entire "${name}" topic and ALL ${count} of its questions?`)) return;
+  const ok = await showConfirm({
+    title: 'Delete topic',
+    body: `Delete the entire "${name}" topic and ALL ${count} of its questions? This cannot be undone.`,
+    okText: 'Delete topic', danger: true
+  });
+  if (!ok) return;
   try {
     await fetch(`/api/admin/topics/${encodeURIComponent(name)}`, { method: 'DELETE' });
     state.expandedTopics.delete(name);
     await loadQuestions();
-  } catch { alert('Failed to delete topic.'); }
+    showToast(`Topic "${name}" deleted.`, 'success');
+  } catch { showToast('Failed to delete topic.', 'danger'); }
 }
 
 async function backfillZhuyin() {
-  if (!confirm('Scan the question bank and use AI to add 注音 to every word missing it?')) return;
+  const ok = await showConfirm({
+    title: '注音 Backfill',
+    body: 'Scan the question bank and use AI to add pinyin / 注音 to every word missing them?',
+    okText: 'Run'
+  });
+  if (!ok) return;
   const orig = backfillBtn.textContent;
   backfillBtn.disabled = true;
   backfillBtn.textContent = 'Working…';
@@ -399,18 +501,74 @@ async function backfillZhuyin() {
     const res  = await fetch('/api/admin/backfill-zhuyin', { method: 'POST' });
     const data = await res.json();
     if (!res.ok || data.error) {
-      alert('Backfill failed: ' + (data.error || 'unknown error'));
+      showToast('Backfill failed: ' + (data.error || 'unknown error'), 'danger');
     } else if (data.uniqueMissing === 0) {
-      alert('All questions already have 注音.');
+      showToast('Every word already has pinyin and 注音.', 'info');
     } else {
-      alert(`Done. Added 注音 to ${data.updatedFields} word slot(s) (${data.mapped} unique words).`);
+      showToast(`Filled ${data.updatedFields} field(s) across ${data.mapped} unique words.`, 'success');
       await loadQuestions();
     }
   } catch (err) {
-    alert('Backfill failed: ' + err.message);
+    showToast('Backfill failed: ' + err.message, 'danger');
   } finally {
     backfillBtn.disabled = false;
     backfillBtn.textContent = orig;
+  }
+}
+
+async function restoreSeed() {
+  const ok = await showConfirm({
+    title: 'Restore default questions',
+    body: 'Add the built-in 60-question starter pack? Existing questions are not affected — this only adds missing defaults.',
+    okText: 'Restore'
+  });
+  if (!ok) return;
+  const orig = restoreSeedBtn.textContent;
+  restoreSeedBtn.disabled = true;
+  restoreSeedBtn.textContent = 'Working…';
+  try {
+    const res  = await fetch('/api/admin/restore-seed', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      showToast('Restore failed: ' + (data.error || 'unknown error'), 'danger');
+    } else if (data.added === 0) {
+      showToast('All default questions already exist in the bank.', 'info');
+    } else {
+      showToast(`Added ${data.added} default question(s).`, 'success');
+      await loadQuestions();
+    }
+  } catch (err) {
+    showToast('Restore failed: ' + err.message, 'danger');
+  } finally {
+    restoreSeedBtn.disabled = false;
+    restoreSeedBtn.textContent = orig;
+  }
+}
+
+async function generateImageForQuestion(id, btn) {
+  const ok = await showConfirm({
+    title: 'Generate AI image',
+    body: 'Use Gemini to create an illustration for this question? This will replace any current image or emoji.',
+    okText: 'Generate'
+  });
+  if (!ok) return;
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '⌛';
+  try {
+    const res  = await fetch(`/api/admin/questions/${id}/generate-image`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      showToast('Image generation failed: ' + (data.error || 'unknown error'), 'danger');
+    } else {
+      showToast('Image generated.', 'success');
+      await loadQuestions();
+    }
+  } catch (err) {
+    showToast('Image generation failed: ' + err.message, 'danger');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = orig;
   }
 }
 
@@ -430,7 +588,7 @@ function openQuestionModal(question) {
     fqImageUrl.value = (question.imageUrl && !question.imageUrl.startsWith('data:')) ? question.imageUrl : '';
     state.formImageDataUrl = (question.imageUrl && question.imageUrl.startsWith('data:')) ? question.imageUrl : null;
     fqImageFile.value = '';
-    renderOptionRows(question.options || []);
+    renderOptionRows(question.options || [], question.correctIndex || 0);
   } else {
     fqTopic.value = '';
     fqType.value = 'image_to_word';
@@ -438,7 +596,7 @@ function openQuestionModal(question) {
     fqEmoji.value = '';
     fqImageUrl.value = '';
     fqImageFile.value = '';
-    renderOptionRows([]);
+    renderOptionRows([], 0);
   }
   renderImagePreview();
   questionModal.show();
@@ -453,20 +611,35 @@ function refreshTopicDatalist() {
   });
 }
 
-function renderOptionRows(opts) {
+function renderOptionRows(opts, correctIdx = 0) {
   fqOptionsWrap.innerHTML = '';
   for (let i = 0; i < 4; i++) {
     const o = opts[i] || { chinese: '', pinyin: '', zhuyin: '', english: '' };
     const row = document.createElement('div');
-    row.className = 'option-row' + (i === 0 ? ' correct' : '');
+    row.className = 'option-row' + (i === correctIdx ? ' correct' : '');
+    row.dataset.idx = i;
     row.innerHTML = `
-      <span class="opt-tag" title="${i === 0 ? 'Correct answer' : 'Wrong option'}">${i === 0 ? '✓' : i + 1}</span>
+      <button type="button" class="opt-tag" title="Click to mark as the correct answer">${i === correctIdx ? '✓' : i + 1}</button>
       <input class="form-control form-control-sm opt-chinese-input" placeholder="繁體 Chinese" value="${escapeAttr(o.chinese)}" />
-      <input class="form-control form-control-sm opt-pinyin-input"  placeholder="pinyin"     value="${escapeAttr(o.pinyin)}" />
+      <input class="form-control form-control-sm opt-pinyin-input"  placeholder="pinyin (auto)" value="${escapeAttr(o.pinyin)}" />
       <input class="form-control form-control-sm opt-zhuyin-input"  placeholder="注音 (auto)" value="${escapeAttr(o.zhuyin)}" />
       <input class="form-control form-control-sm opt-english-input opt-english-field" placeholder="English" value="${escapeAttr(o.english)}" />`;
+    row.querySelector('.opt-tag').addEventListener('click', () => setCorrectOption(i));
     fqOptionsWrap.appendChild(row);
   }
+}
+
+function setCorrectOption(idx) {
+  fqOptionsWrap.querySelectorAll('.option-row').forEach((row, i) => {
+    const tag = row.querySelector('.opt-tag');
+    if (i === idx) {
+      row.classList.add('correct');
+      tag.textContent = '✓';
+    } else {
+      row.classList.remove('correct');
+      tag.textContent = i + 1;
+    }
+  });
 }
 
 function renderImagePreview() {
@@ -486,17 +659,17 @@ async function handleImageFileSelect() {
   const file = fqImageFile.files[0];
   if (!file) return;
   if (file.size > 4 * 1024 * 1024) {
-    alert('File too large (max 4 MB). Please use a smaller image.');
+    showToast('File too large (max 4 MB). Use a smaller image.', 'warning');
     fqImageFile.value = '';
     return;
   }
   try {
     const dataUrl = await compressImage(file, 600);
     state.formImageDataUrl = dataUrl;
-    fqImageUrl.value = ''; // file overrides URL
+    fqImageUrl.value = '';
     renderImagePreview();
   } catch (err) {
-    alert('Could not process image: ' + err.message);
+    showToast('Could not process image: ' + err.message, 'danger');
     fqImageFile.value = '';
   }
 }
@@ -530,15 +703,18 @@ function compressImage(file, maxDim) {
 }
 
 function collectFormData() {
-  const optionRows = fqOptionsWrap.querySelectorAll('.option-row');
-  const options = [...optionRows].map(row => ({
+  const optionRows = [...fqOptionsWrap.querySelectorAll('.option-row')];
+  const options = optionRows.map(row => ({
     chinese: row.querySelector('.opt-chinese-input').value.trim(),
     pinyin:  row.querySelector('.opt-pinyin-input').value.trim(),
     zhuyin:  row.querySelector('.opt-zhuyin-input').value.trim(),
     english: row.querySelector('.opt-english-input').value.trim()
   }));
 
-  // Image source priority: uploaded file > URL > none (use emoji)
+  // Whichever row has the .correct class is the answer
+  let correctIndex = optionRows.findIndex(r => r.classList.contains('correct'));
+  if (correctIndex < 0) correctIndex = 0;
+
   const imageUrl = state.formImageDataUrl || fqImageUrl.value.trim() || '';
 
   return {
@@ -547,9 +723,9 @@ function collectFormData() {
     question_en:  fqQuestion.value.trim(),
     emoji:        fqEmoji.value.trim(),
     imageUrl,
-    answer:       options[0],
+    answer:       options[correctIndex],
     options,
-    correctIndex: 0
+    correctIndex
   };
 }
 
@@ -571,7 +747,7 @@ function validateFormData(d) {
 async function saveQuestionForm() {
   const data = collectFormData();
   const err = validateFormData(data);
-  if (err) { alert(err); return; }
+  if (err) { showToast(err, 'warning'); return; }
 
   fqSave.disabled = true;
   fqSave.textContent = 'Saving…';
@@ -590,15 +766,16 @@ async function saveQuestionForm() {
     const result = await res.json();
 
     if (!res.ok || result.error) {
-      alert('Failed: ' + (result.error || 'unknown error'));
+      showToast('Save failed: ' + (result.error || 'unknown error'), 'danger');
       return;
     }
 
     questionModal.hide();
     if (data.topic && !state.expandedTopics.has(data.topic)) state.expandedTopics.add(data.topic);
     await loadQuestions();
+    showToast(editing ? 'Question updated.' : 'Question added.', 'success');
   } catch (e) {
-    alert('Failed to save: ' + e.message);
+    showToast('Save failed: ' + e.message, 'danger');
   } finally {
     fqSave.disabled = false;
     fqSave.textContent = 'Save';
@@ -656,8 +833,8 @@ function renderAssignTopicPicker() {
 
 async function createAssignment() {
   const name = assignName.value.trim();
-  if (!name) { alert('Enter a student name first.'); return; }
-  if (state.assignTopicsPicked.size === 0) { alert('Pick at least one topic.'); return; }
+  if (!name) { showToast('Enter a student name first.', 'warning'); return; }
+  if (state.assignTopicsPicked.size === 0) { showToast('Pick at least one topic.', 'warning'); return; }
 
   try {
     const res = await fetch('/api/admin/assignments', {
@@ -678,9 +855,9 @@ async function createAssignment() {
       await loadStudents();
       const match = state.students.find(s => s.name.toLowerCase() === name.toLowerCase());
       if (match) selectStudent(match.name);
-      alert(`Assignment created for ${data.assignment.studentName}.`);
+      showToast(`Assignment created for ${data.assignment.studentName}.`, 'success');
     }
-  } catch { alert('Failed to create assignment.'); }
+  } catch { showToast('Failed to create assignment.', 'danger'); }
 }
 
 function renderStudentList() {
@@ -812,11 +989,13 @@ function renderStudentDetail() {
 }
 
 async function removeAssignment(aid) {
-  if (!confirm('Remove this assignment?')) return;
+  const ok = await showConfirm({ title: 'Remove assignment', body: 'Remove this assignment from the student?', okText: 'Remove', danger: true });
+  if (!ok) return;
   try {
     await fetch(`/api/admin/assignments/${aid}`, { method: 'DELETE' });
     await loadStudents();
-  } catch { alert('Failed to remove assignment.'); }
+    showToast('Assignment removed.', 'success');
+  } catch { showToast('Failed to remove assignment.', 'danger'); }
 }
 
 /* ─── ALL RESULTS TAB ─── */
@@ -929,26 +1108,34 @@ function renderResults() {
 async function deleteOneResult(id) {
   const target = state.results.find(r => r.id === id);
   const label = target ? `${target.studentName} · ${target.topic} (${target.percentage}%)` : 'this record';
-  if (!confirm(`Delete ${label}?`)) return;
+  const ok = await showConfirm({ title: 'Delete result', body: `Delete ${label}?`, okText: 'Delete', danger: true });
+  if (!ok) return;
   try {
     const res = await fetch(`/api/admin/results/${id}`, { method: 'DELETE' });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      alert('Failed: ' + (data.error || 'unknown error'));
+      showToast('Failed: ' + (data.error || 'unknown error'), 'danger');
       return;
     }
     state.results = state.results.filter(r => r.id !== id);
     renderResults();
-  } catch (err) { alert('Failed: ' + err.message); }
+    showToast('Result deleted.', 'success');
+  } catch (err) { showToast('Failed: ' + err.message, 'danger'); }
 }
 
 async function clearResults() {
-  if (!confirm('Clear ALL student results? This cannot be undone.')) return;
+  const ok = await showConfirm({
+    title: 'Clear all results',
+    body: 'Delete EVERY student result? This cannot be undone.',
+    okText: 'Delete all', danger: true
+  });
+  if (!ok) return;
   try {
     await fetch('/api/admin/results', { method: 'DELETE' });
     await loadResults();
     await loadStudents();
-  } catch { alert('Failed to clear results.'); }
+    showToast('All results cleared.', 'success');
+  } catch { showToast('Failed to clear results.', 'danger'); }
 }
 
 /* ─── Helpers ─── */

@@ -113,7 +113,7 @@ async function chatWithAI(message, conversationHistory) {
   return response.text;
 }
 
-// Generic single-turn Gemini call for non-quiz tasks (e.g. zhuyin backfill).
+// Generic single-turn Gemini call for non-quiz tasks (e.g. phonetics backfill).
 // Caller supplies its own systemInstruction so the quiz teacher persona is bypassed.
 async function generateText(prompt, systemInstruction) {
   const response = await client.models.generateContent({
@@ -128,4 +128,24 @@ async function generateText(prompt, systemInstruction) {
   return response.text;
 }
 
-module.exports = { chatWithAI, generateText };
+// Use Gemini's image-generation model ("Nano Banana") to produce a single image.
+// Returns a base64 data URL on success, or throws.
+async function generateImage(prompt) {
+  const response = await client.models.generateContent({
+    model: 'gemini-2.5-flash-image-preview',
+    contents: prompt,
+    config: { responseModalities: ['IMAGE', 'TEXT'] }
+  });
+
+  for (const candidate of response.candidates || []) {
+    for (const part of candidate.content?.parts || []) {
+      if (part.inlineData && part.inlineData.data) {
+        const mime = part.inlineData.mimeType || 'image/png';
+        return `data:${mime};base64,${part.inlineData.data}`;
+      }
+    }
+  }
+  throw new Error('Model returned no image data');
+}
+
+module.exports = { chatWithAI, generateText, generateImage };

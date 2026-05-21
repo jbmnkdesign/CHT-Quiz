@@ -1,34 +1,34 @@
 const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const { read, write } = require('../utils/database');
-const { generateText } = require('../utils/aiHelper');
+const { generateText, generateImage } = require('../utils/aiHelper');
+const { seedQuestions } = require('../utils/seedData');
 
 const router = express.Router();
 
-const ZHUYIN_SYSTEM = `You are a Chinese phonetics expert. Convert Traditional Chinese words with pinyin into zhuyin (注音符號 / Bopomofo).
+const PHONETICS_SYSTEM = `You are a Chinese phonetics expert. Provide BOTH pinyin (with tone diacritics) AND zhuyin (注音符號 / Bopomofo) for Traditional Chinese words.
 
 Rules:
-- Use a SPACE between each syllable
-- Tone marks: 1st = no mark, 2nd = ˊ, 3rd = ˇ, 4th = ˋ, neutral = ˙ before the syllable
+- Pinyin: standard Hanyu Pinyin with tone diacritics (ā á ǎ à, ē é ě è, ī í ǐ ì, ō ó ǒ ò, ū ú ǔ ù, ǖ ǘ ǚ ǜ). No tone numbers.
+- Zhuyin: SPACE between each syllable. Tone marks: 1st = no mark, 2nd = ˊ, 3rd = ˇ, 4th = ˋ, neutral = ˙ before the syllable.
 - Examples:
-  - 媽 mā → ㄇㄚ
-  - 馬 mǎ → ㄇㄚˇ
-  - 謝謝 xièxiè → ㄒㄧㄝˋ ㄒㄧㄝˋ
-  - 學校 xuéxiào → ㄒㄩㄝˊ ㄒㄧㄠˋ
-  - 桌子 zhuōzi → ㄓㄨㄛ ˙ㄗ
-  - 對不起 duìbuqǐ → ㄉㄨㄟˋ ˙ㄅㄨ ㄑㄧˇ
+  - 貓 → pinyin: "māo", zhuyin: "ㄇㄚ"
+  - 馬 → pinyin: "mǎ", zhuyin: "ㄇㄚˇ"
+  - 謝謝 → pinyin: "xièxiè", zhuyin: "ㄒㄧㄝˋ ㄒㄧㄝˋ"
+  - 學校 → pinyin: "xuéxiào", zhuyin: "ㄒㄩㄝˊ ㄒㄧㄠˋ"
+  - 桌子 → pinyin: "zhuōzi", zhuyin: "ㄓㄨㄛ ˙ㄗ"
+  - 對不起 → pinyin: "duìbuqǐ", zhuyin: "ㄉㄨㄟˋ ˙ㄅㄨ ㄑㄧˇ"
 
 Respond ONLY with a JSON object — no markdown fences, no surrounding text.`;
 
-// Scan a question array, ask Gemini for zhuyin on any word missing it, mutate in place.
-// Returns { uniqueMissing, mapped, updatedFields }
-async function fillMissingZhuyin(questions) {
-  const missing = new Map();
+// Scan a question array, ask Gemini for pinyin AND zhuyin on any word missing either, mutate in place.
+async function fillMissingPhonetics(questions) {
+  const missing = new Map(); // chinese -> { chinese, existingPinyin }
   const collect = (w) => {
-    if (!w || w.zhuyin) return;
-    const key = (w.chinese || '') + '|' + (w.pinyin || '');
-    if (!missing.has(key) && w.chinese && w.pinyin) {
-      missing.set(key, { chinese: w.chinese, pinyin: w.pinyin });
+    if (!w || !w.chinese) return;
+    if (w.pinyin && w.zhuyin) return; // both already present
+    if (!missing.has(w.chinese)) {
+      missing.set(w.chinese, { chinese: w.chinese, existingPinyin: w.pinyin || '' });
     }
   };
   for (const q of questions) {
@@ -40,19 +40,25 @@ async function fillMissingZhuyin(questions) {
     return { uniqueMissing: 0, mapped: 0, updatedFields: 0 };
   }
 
-  const wordList = [...missing.values()];
-  const prompt = `Convert each of these Traditional Chinese words to zhuyin. Return ONLY a JSON object whose keys are exactly "chinese|pinyin" and values are the zhuyin string.
+  const list = [...missing.values()];
+  const lines = list.map(w =>
+    w.existingPinyin
+      ? `${w.chinese} (current pinyin: ${w.existingPinyin})`
+      : w.chinese
+  );
+
+  const prompt = `Provide pinyin and zhuyin for each Traditional Chinese word. Return ONLY a JSON object whose keys are the chinese strings.
 
 Words:
-${wordList.map(w => `${w.chinese} (${w.pinyin})`).join('\n')}
+${lines.join('\n')}
 
 Expected response shape (no other text):
 {
-  "貓|māo": "ㄇㄚ",
-  "謝謝|xièxiè": "ㄒㄧㄝˋ ㄒㄧㄝˋ"
+  "貓":    { "pinyin": "māo",   "zhuyin": "ㄇㄚ" },
+  "學校":  { "pinyin": "xuéxiào", "zhuyin": "ㄒㄩㄝˊ ㄒㄧㄠˋ" }
 }`;
 
-  const aiText = await generateText(prompt, ZHUYIN_SYSTEM);
+  const aiText = await generateText(prompt, PHONETICS_SYSTEM);
   let mapping = {};
   const jsonMatch = aiText.match(/\{[\s\S]*\}/);
   if (jsonMatch) {
@@ -61,12 +67,11 @@ Expected response shape (no other text):
 
   let updatedFields = 0;
   const apply = (w) => {
-    if (!w || w.zhuyin) return;
-    const key = (w.chinese || '') + '|' + (w.pinyin || '');
-    if (mapping[key]) {
-      w.zhuyin = mapping[key];
-      updatedFields++;
-    }
+    if (!w || !w.chinese) return;
+    const m = mapping[w.chinese];
+    if (!m || typeof m !== 'object') return;
+    if (!w.pinyin && m.pinyin) { w.pinyin = m.pinyin; updatedFields++; }
+    if (!w.zhuyin && m.zhuyin) { w.zhuyin = m.zhuyin; updatedFields++; }
   };
   for (const q of questions) {
     apply(q.answer);
@@ -78,6 +83,23 @@ Expected response shape (no other text):
     mapped: Object.keys(mapping).length,
     updatedFields
   };
+}
+
+// Randomise the position of the correct answer among the options.
+// Keeps q.answer pointing to the same word; just shuffles q.options and updates q.correctIndex.
+function shuffleQuestionOptions(q) {
+  if (!Array.isArray(q.options) || q.options.length < 2) return q;
+  const correctOption = q.options[q.correctIndex] || q.answer;
+  if (!correctOption) return q;
+  const shuffled = [...q.options].sort(() => Math.random() - 0.5);
+  const newIdx = shuffled.findIndex(o =>
+    o === correctOption ||
+    (o.chinese === correctOption.chinese && o.english === correctOption.english)
+  );
+  q.options = shuffled;
+  q.correctIndex = newIdx >= 0 ? newIdx : 0;
+  q.answer = q.options[q.correctIndex];
+  return q;
 }
 
 /* ────────────────────────── QUESTIONS ────────────────────────── */
@@ -105,13 +127,16 @@ router.post('/questions', async (req, res) => {
       createdAt: new Date().toISOString()
     }));
 
-    // Safety net: AI is supposed to include zhuyin in every word, but if it
+    // Safety net: AI is supposed to include pinyin + zhuyin in every word, but if it
     // slips up we silently fill in the missing values before saving.
     try {
-      await fillMissingZhuyin(newQuestions);
+      await fillMissingPhonetics(newQuestions);
     } catch (e) {
-      console.warn('Zhuyin auto-fill failed during save, continuing without it:', e.message);
+      console.warn('Phonetics auto-fill failed during save, continuing without it:', e.message);
     }
+
+    // Randomise correct-answer position so it isn't always option 1
+    newQuestions.forEach(shuffleQuestionOptions);
 
     await write('questions', [...existing, ...newQuestions]);
     res.json({ success: true, count: newQuestions.length, questions: newQuestions });
@@ -154,11 +179,15 @@ router.patch('/questions/:id', async (req, res) => {
       updatedAt: new Date().toISOString()
     };
 
-    // Safety net: fill any missing zhuyin via AI before saving
+    // Safety net: fill any missing pinyin/zhuyin via AI before saving
     try {
-      await fillMissingZhuyin([merged]);
+      await fillMissingPhonetics([merged]);
     } catch (e) {
-      console.warn('Zhuyin auto-fill failed during edit:', e.message);
+      console.warn('Phonetics auto-fill failed during edit:', e.message);
+    }
+    // Edits respect the order the teacher chose; we only sync the answer reference.
+    if (Array.isArray(merged.options) && merged.options[merged.correctIndex]) {
+      merged.answer = merged.options[merged.correctIndex];
     }
 
     questions[idx] = merged;
@@ -216,12 +245,11 @@ router.delete('/topics/:name', async (req, res) => {
   }
 });
 
-// One-shot AI backfill button on the admin page. Uses the same helper as the
-// auto-fill safety net inside POST /questions.
+// One-shot AI backfill button. Fills BOTH pinyin and zhuyin on any question word missing either.
 router.post('/backfill-zhuyin', async (req, res) => {
   try {
     const questions = await read('questions');
-    const result = await fillMissingZhuyin(questions);
+    const result = await fillMissingPhonetics(questions);
 
     if (result.updatedFields > 0) {
       await write('questions', questions);
@@ -236,7 +264,51 @@ router.post('/backfill-zhuyin', async (req, res) => {
     });
   } catch (err) {
     console.error('POST /admin/backfill-zhuyin error:', err);
-    res.status(500).json({ error: 'Failed to backfill zhuyin: ' + err.message });
+    res.status(500).json({ error: 'Failed to backfill phonetics: ' + err.message });
+  }
+});
+
+// Restore the default starter pack: adds any seed questions whose ids are missing from the DB.
+// Idempotent — won't duplicate questions you already have.
+router.post('/restore-seed', async (req, res) => {
+  try {
+    const existing = await read('questions');
+    const existingIds = new Set(existing.map(q => q.id));
+    const missing = seedQuestions.filter(q => !existingIds.has(q.id));
+    if (missing.length === 0) {
+      return res.json({ success: true, added: 0 });
+    }
+    await write('questions', [...existing, ...missing]);
+    res.json({ success: true, added: missing.length });
+  } catch (err) {
+    console.error('POST /admin/restore-seed error:', err);
+    res.status(500).json({ error: 'Failed to restore seed: ' + err.message });
+  }
+});
+
+// Generate an AI image for a single question and attach it as imageUrl.
+router.post('/questions/:id/generate-image', async (req, res) => {
+  try {
+    const questions = await read('questions');
+    const idx = questions.findIndex(q => q.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'Question not found' });
+
+    const q = questions[idx];
+    const answerEn = q.answer?.english || '';
+    const answerCn = q.answer?.chinese || '';
+    if (!answerEn) return res.status(400).json({ error: 'Question has no English answer to base an image on' });
+
+    const prompt = `A simple, friendly cartoon illustration of: ${answerEn} (${answerCn}). Bright vibrant colors, white background, no text or letters in the image, suitable for a 12-year-old beginner Chinese learner.`;
+
+    const dataUrl = await generateImage(prompt);
+    q.imageUrl = dataUrl;
+    q.updatedAt = new Date().toISOString();
+    await write('questions', questions);
+
+    res.json({ success: true, imageUrl: dataUrl });
+  } catch (err) {
+    console.error('POST /admin/questions/:id/generate-image error:', err);
+    res.status(500).json({ error: 'Image generation failed: ' + err.message });
   }
 });
 

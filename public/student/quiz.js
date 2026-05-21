@@ -162,7 +162,7 @@ async function launchQuiz() {
     const raw = await res.json();
 
     if (!raw.length) {
-      alert('No questions found for that topic.');
+      showToast('No questions found for that topic.', 'warning');
       return;
     }
 
@@ -170,8 +170,25 @@ async function launchQuiz() {
     showScreen('quiz');
     showQuestion(0);
   } catch {
-    alert('Could not load questions. Please try again.');
+    showToast('Could not load questions. Please try again.', 'danger');
   }
+}
+
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toastContainer');
+  if (!container) return;
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type} align-items-center border-0`;
+  toast.setAttribute('role', 'alert');
+  toast.innerHTML = `
+    <div class="d-flex">
+      <div class="toast-body">${escapeHtml(message)}</div>
+      <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>`;
+  container.appendChild(toast);
+  const bs = new bootstrap.Toast(toast, { delay: 4000 });
+  bs.show();
+  toast.addEventListener('hidden.bs.toast', () => toast.remove());
 }
 
 /* ─── Question rendering ─── */

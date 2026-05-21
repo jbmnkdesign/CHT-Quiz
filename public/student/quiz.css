@@ -517,6 +517,19 @@ body {
 }
 .assignment-item:hover .assignment-go { transform: translateX(4px); }
 
+/* ─── Toast ─── */
+.toast {
+  border-radius: 10px;
+  border: none;
+  box-shadow: 0 8px 24px rgba(45, 49, 66, 0.18);
+}
+.toast.toast-success { background: linear-gradient(135deg, var(--success), #047857); color: #fff; }
+.toast.toast-danger  { background: linear-gradient(135deg, var(--danger), #B91C1C); color: #fff; }
+.toast.toast-warning { background: linear-gradient(135deg, #B45309, #92400E); color: #fff; }
+.toast.toast-info    { background: linear-gradient(135deg, var(--coral), var(--orange)); color: #fff; }
+.toast .btn-close { filter: brightness(0) invert(1); }
+.toast-body { padding: 12px 14px; font-size: 0.9rem; font-weight: 500; }
+
 /* ─── Responsive ─── */
 @media (max-width: 600px) {
   .brand-header { padding: 36px 18px 60px; }
