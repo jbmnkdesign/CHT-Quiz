@@ -45,17 +45,31 @@ body {
 /* ─── Bootstrap overrides ─── */
 .btn { border-radius: 9px; font-weight: 600; white-space: nowrap; }
 
-/* Tool buttons (Add Question / Restore / Backfill) — same shape, same height */
-.btn-toolbar { display: flex; gap: 8px; flex-wrap: wrap; }
+/* Tool buttons (Add Question / Restore / Backfill) — same shape, same height.
+ * `auto-fit` keeps every button at content width and pushes overflow to the
+ * next row, so we never get horizontal scroll when extra buttons appear. */
+.btn-toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  max-width: 100%;
+  min-width: 0;
+}
 .btn-tool {
   padding: 8px 16px;
   font-size: 0.86rem;
-  height: 38px;
+  min-height: 38px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   border-radius: 9px;
   border: 1.5px solid transparent;
+  flex: 0 0 auto;
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.2;
 }
 .btn-tool-outline {
   background: #fff;
@@ -361,6 +375,12 @@ body {
       "visual main actions"
       "visual main actions";
   }
+  .q-row.no-visual {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "main actions"
+      "main actions";
+  }
   .q-visual { grid-area: visual; }
   .q-main { grid-area: main; }
   .q-row-actions { grid-area: actions; }
@@ -371,7 +391,15 @@ body {
   .panel-header { flex-direction: column; align-items: stretch; }
   .header-actions { justify-content: flex-start; flex-direction: column; align-items: stretch; }
   .header-actions .btn-toolbar { width: 100%; }
-  .header-actions .btn-toolbar .btn { flex: 1 1 0; min-width: 0; }
+  /* Each button grows to share the row; if a label can't fit it just wraps
+   * to a second line inside the button instead of overflowing the viewport. */
+  .header-actions .btn-toolbar .btn {
+    flex: 1 1 130px;
+    min-width: 0;
+    white-space: normal;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
   .panel-header h2 { font-size: 1.35rem; }
 
   /* Accordion header: stack the topic name on top of the action buttons */
@@ -635,6 +663,8 @@ body {
   border-radius: 6px;
   transition: background 0.12s;
 }
+/* Drop the visual column when the question has no image or emoji. */
+.q-row.no-visual { grid-template-columns: 1fr auto auto; }
 .q-row:hover { background: #fff; }
 .q-row:last-child { border-bottom: none; }
 
@@ -911,6 +941,59 @@ body {
   font-family: inherit;
 }
 .row-delete:hover { background: var(--danger-bg); color: var(--danger); }
+
+/* ─── Results table — narrow-screen card layout ─── */
+/* Below ~480px the 7-column table becomes unreadable. Turn each row into a
+ * stacked card so every field has room for its value, with the data-label
+ * attribute supplying the column header inline. */
+@media (max-width: 480px) {
+  .results-table { display: block; }
+  .results-table thead { display: none; }
+  .results-table tbody, .results-table tr, .results-table td { display: block; width: 100%; }
+  .results-table tbody tr {
+    background: #fff;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 12px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    position: relative;
+    box-shadow: 0 2px 6px rgba(45, 49, 66, 0.04);
+  }
+  .results-table tbody tr:hover > td { background: transparent !important; }
+  .results-table td {
+    padding: 4px 0 !important;
+    border-bottom: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.86rem;
+  }
+  .results-table td::before {
+    content: attr(data-label);
+    color: var(--coral-dk);
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+  }
+  .results-table td.col-actions {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: auto;
+    padding: 0 !important;
+  }
+  .results-table td.col-actions::before { display: none; }
+  /* Student name takes the full top row of the card, no label needed. */
+  .results-table td[data-label="Student"] {
+    font-size: 1rem;
+    padding-right: 36px !important;
+    margin-bottom: 4px;
+  }
+  .results-table td[data-label="Student"]::before { display: none; }
+}
 
 /* ─── Question form modal ─── */
 #questionModal .modal-content { border-radius: 16px; border: none; }

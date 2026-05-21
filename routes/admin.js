@@ -268,13 +268,31 @@ router.post('/backfill-zhuyin', async (req, res) => {
   }
 });
 
+// Tiny status endpoint so the admin UI can hide the "Restore Defaults"
+// button when every seed question is already in the bank.
+router.get('/restore-seed/status', async (req, res) => {
+  try {
+    const existing = await read('questions');
+    const existingIds = new Set(existing.map(q => q.id));
+    const missing = seedQuestions.filter(q => !existingIds.has(q.id)).length;
+    res.json({ total: seedQuestions.length, missing });
+  } catch (err) {
+    console.error('GET /admin/restore-seed/status error:', err);
+    res.status(500).json({ error: 'Failed to load seed status' });
+  }
+});
+
 // Restore the default starter pack: adds any seed questions whose ids are missing from the DB.
 // Idempotent — won't duplicate questions you already have.
 router.post('/restore-seed', async (req, res) => {
   try {
     const existing = await read('questions');
     const existingIds = new Set(existing.map(q => q.id));
-    const missing = seedQuestions.filter(q => !existingIds.has(q.id));
+    // Deep-copy + shuffle each seed question's options so the correct answer
+    // isn't always the first option.
+    const missing = seedQuestions
+      .filter(q => !existingIds.has(q.id))
+      .map(q => shuffleQuestionOptions(JSON.parse(JSON.stringify(q))));
     if (missing.length === 0) {
       return res.json({ success: true, added: 0 });
     }
@@ -283,6 +301,21 @@ router.post('/restore-seed', async (req, res) => {
   } catch (err) {
     console.error('POST /admin/restore-seed error:', err);
     res.status(500).json({ error: 'Failed to restore seed: ' + err.message });
+  }
+});
+
+// Reshuffle the option order for every existing question so the correct answer
+// is spread across all four positions. Idempotent (running it again just
+// re-randomises). Used to fix legacy data where correctIndex was always 0.
+router.post('/shuffle-correct-positions', async (req, res) => {
+  try {
+    const questions = await read('questions');
+    questions.forEach(shuffleQuestionOptions);
+    await write('questions', questions);
+    res.json({ success: true, shuffled: questions.length });
+  } catch (err) {
+    console.error('POST /admin/shuffle-correct-positions error:', err);
+    res.status(500).json({ error: 'Failed to shuffle: ' + err.message });
   }
 });
 

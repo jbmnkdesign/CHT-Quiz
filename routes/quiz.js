@@ -7,7 +7,11 @@ const router = express.Router();
 router.get('/topics', async (req, res) => {
   try {
     const questions = await read('questions');
-    const topics = [...new Set(questions.map(q => q.topic))].sort();
+    const counts = new Map();
+    questions.forEach(q => counts.set(q.topic, (counts.get(q.topic) || 0) + 1));
+    const topics = [...counts.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => a.name.localeCompare(b.name));
     res.json(topics);
   } catch (err) {
     console.error('GET /topics error:', err);

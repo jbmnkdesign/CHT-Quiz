@@ -62,6 +62,7 @@ async function init() {
   continueBtn.addEventListener('click', goToPicker);
   changeNameBtn.addEventListener('click', () => showScreen('welcome'));
   startPracticeBtn.addEventListener('click', startFreePractice);
+  topicSelect.addEventListener('change', refreshCountOptions);
   nextBtn.addEventListener('click', nextQuestion);
 
   document.getElementById('retry-btn').addEventListener('click', retryQuiz);
@@ -126,13 +127,63 @@ function renderAssignments() {
 async function loadTopics() {
   try {
     const res = await fetch('/api/quiz/topics');
-    state.topics = await res.json();
+    const data = await res.json();
+    // Endpoint now returns [{ name, count }, ...]; tolerate the old shape too.
+    state.topics = (data || []).map(t =>
+      typeof t === 'string' ? { name: t, count: 0 } : t
+    );
     state.topics.forEach(t => {
       const opt = document.createElement('option');
-      opt.value = t; opt.textContent = t;
+      opt.value = t.name;
+      opt.textContent = t.count ? `${t.name} (${t.count})` : t.name;
       topicSelect.appendChild(opt);
     });
+    refreshCountOptions();
   } catch { /* silent */ }
+}
+
+/* Count selector is only useful when the chosen topic has enough questions
+ * to slice a smaller subset from. Below 10 questions we force "All". */
+function refreshCountOptions() {
+  const selected = topicSelect.value;
+  let available;
+  if (selected === 'all') {
+    available = state.topics.reduce((s, t) => s + (t.count || 0), 0);
+  } else {
+    const t = state.topics.find(x => x.name === selected);
+    available = t ? t.count : 0;
+  }
+
+  const prev = countSelect.value;
+  countSelect.innerHTML = '';
+
+  if (available < 10) {
+    const opt = document.createElement('option');
+    opt.value = String(available || 0);
+    opt.textContent = `All questions (${available})`;
+    countSelect.appendChild(opt);
+    countSelect.disabled = true;
+  } else {
+    countSelect.disabled = false;
+    [5, 10, 15, 20].forEach(n => {
+      if (n > available) return;
+      const opt = document.createElement('option');
+      opt.value = String(n);
+      opt.textContent = `${n} questions`;
+      countSelect.appendChild(opt);
+    });
+    const allOpt = document.createElement('option');
+    allOpt.value = String(available);
+    allOpt.textContent = `All questions (${available})`;
+    countSelect.appendChild(allOpt);
+
+    // Restore previous selection where possible, otherwise default to 10.
+    if ([...countSelect.options].some(o => o.value === prev)) {
+      countSelect.value = prev;
+    } else if ([...countSelect.options].some(o => o.value === '10')) {
+      countSelect.value = '10';
+    }
+  }
 }
 
 /* ─── Launch quiz ─── */

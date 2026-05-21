@@ -335,12 +335,14 @@ async function loadQuestions() {
 function renderTopicGroups() {
   questionsBadge.textContent = state.questions.length + ' questions';
 
-  // Auto-hide the backfill button when every word already has zhuyin
-  const needsBackfill = state.questions.some(q => {
-    if (q.answer && !q.answer.zhuyin) return true;
-    return (q.options || []).some(opt => !opt.zhuyin);
-  });
+  // Auto-hide the backfill button when every word already has BOTH pinyin and zhuyin.
+  const wordIsIncomplete = w => !w || !w.pinyin || !w.zhuyin;
+  const needsBackfill = state.questions.some(q =>
+    wordIsIncomplete(q.answer) || (q.options || []).some(wordIsIncomplete)
+  );
   backfillBtn.classList.toggle('d-none', !needsBackfill);
+
+  refreshRestoreSeedVisibility();
 
   if (state.questions.length === 0) {
     topicGroups.innerHTML = `
@@ -384,10 +386,13 @@ function renderTopicGroups() {
     const body = item.querySelector('.accordion-body');
     items.forEach(q => {
       const row = document.createElement('div');
-      row.className = 'q-row';
+      const hasVisual = !!(q.imageUrl || (q.emoji && q.emoji.trim()));
+      row.className = 'q-row' + (hasVisual ? '' : ' no-visual');
       const visual = q.imageUrl
         ? `<span class="q-visual"><img src="${escapeAttr(q.imageUrl)}" alt="" /></span>`
-        : `<span class="q-visual">${q.emoji || '📖'}</span>`;
+        : q.emoji && q.emoji.trim()
+          ? `<span class="q-visual">${q.emoji}</span>`
+          : '';
       row.innerHTML = `
         ${visual}
         <div class="q-main">
@@ -489,7 +494,7 @@ async function deleteTopic(name, count) {
 
 async function backfillZhuyin() {
   const ok = await showConfirm({
-    title: '注音 Backfill',
+    title: '拼音／注音 Backfill',
     body: 'Scan the question bank and use AI to add pinyin / 注音 to every word missing them?',
     okText: 'Run'
   });
@@ -514,6 +519,15 @@ async function backfillZhuyin() {
     backfillBtn.disabled = false;
     backfillBtn.textContent = orig;
   }
+}
+
+async function refreshRestoreSeedVisibility() {
+  try {
+    const res = await fetch('/api/admin/restore-seed/status');
+    if (!res.ok) return;
+    const data = await res.json();
+    restoreSeedBtn.classList.toggle('d-none', !data.missing);
+  } catch { /* silent — leave button visible on error */ }
 }
 
 async function restoreSeed() {
@@ -1090,13 +1104,13 @@ function renderResults() {
     const timeStr   = new Date(r.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     const duration  = r.duration ? formatDuration(r.duration) : '—';
     return `<tr>
-      <td><strong>${escapeHtml(r.studentName)}</strong></td>
-      <td>${escapeHtml(r.topic)}</td>
-      <td>${r.score} / ${r.total}</td>
-      <td><span class="score-pill ${pillClass}">${r.percentage}%</span></td>
-      <td>${duration}</td>
-      <td title="${timeStr}">${dateStr}</td>
-      <td><button class="row-delete" data-rid="${escapeHtml(r.id)}" type="button" title="Delete">✕</button></td>
+      <td data-label="Student"><strong>${escapeHtml(r.studentName)}</strong></td>
+      <td data-label="Topic">${escapeHtml(r.topic)}</td>
+      <td data-label="Score">${r.score} / ${r.total}</td>
+      <td data-label="%"><span class="score-pill ${pillClass}">${r.percentage}%</span></td>
+      <td data-label="Duration">${duration}</td>
+      <td data-label="Date" title="${timeStr}">${dateStr}</td>
+      <td data-label="" class="col-actions"><button class="row-delete" data-rid="${escapeHtml(r.id)}" type="button" title="Delete">✕</button></td>
     </tr>`;
   }).join('');
 
