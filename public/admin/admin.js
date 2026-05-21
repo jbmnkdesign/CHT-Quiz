@@ -413,7 +413,7 @@ function renderTopicGroups() {
         </div>
         <span class="q-type-tag">${formatType(q.type)}</span>
         <div class="q-row-actions">
-          ${isPicture ? '<button class="icon-btn gen-image" data-img type="button" title="Generate AI image">✨</button>' : ''}
+          ${isPicture ? `<button class="icon-btn gen-image" data-img type="button" title="${q.imageUrl ? 'Regenerate AI image' : 'Generate AI image'}">✨</button>` : ''}
           <button class="icon-btn" data-edit type="button" title="Edit">✎</button>
           <button class="icon-btn danger" data-del type="button" title="Delete">✕</button>
         </div>`;
@@ -570,10 +570,14 @@ async function restoreSeed() {
 }
 
 async function generateImageForQuestion(id, btn) {
+  const question = state.questions.find(q => q.id === id);
+  const hasImage = !!question?.imageUrl;
   const ok = await showConfirm({
-    title: 'Generate AI image',
-    body: 'Use Gemini to create an illustration for this question? This will replace any current image or emoji.',
-    okText: 'Generate'
+    title: hasImage ? 'Regenerate AI image' : 'Generate AI image',
+    body: hasImage
+      ? 'Generate a new AI illustration to replace the current one? Press ✨ again any time you want another version.'
+      : 'Use AI to create an illustration for this question? This will replace any current emoji.',
+    okText: hasImage ? 'Regenerate' : 'Generate'
   });
   if (!ok) return;
   const orig = btn.textContent;
