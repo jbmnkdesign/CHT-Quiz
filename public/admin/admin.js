@@ -751,8 +751,10 @@ function validateFormData(d) {
   }
   for (let i = 0; i < 4; i++) {
     const o = d.options[i];
-    if (!o.chinese || !o.pinyin || !o.english) {
-      return `Option ${i + 1} is incomplete — Chinese, Pinyin, and English are all required.`;
+    // Pinyin and zhuyin are auto-filled by the backend on save when blank,
+    // so only Chinese and English are user-required here.
+    if (!o.chinese || !o.english) {
+      return `Option ${i + 1} is incomplete — Chinese and English are required.`;
     }
   }
   return null;
