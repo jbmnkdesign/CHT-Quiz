@@ -430,5 +430,3 @@ curl -X POST https://<your>.vercel.app/api/admin/resync-seed
 2. 確認 `GEMINI_API_KEY` 和 `HF_TOKEN` 都在 Environment Variables 裡
 3. 確認 KV Database 顯示已連結（Storage 分頁）
 4. 確認 `git log` 最後一筆 commit 已被 Vercel 部署成功
-
-歡迎在 GitHub 開 issue 或直接 push fix。
