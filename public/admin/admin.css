@@ -707,16 +707,6 @@ body {
   font-size: 1.25rem;
   font-weight: 800;
 }
-.q-correct-pos {
-  font-size: 0.7rem;
-  font-weight: 800;
-  color: var(--success);
-  background: var(--success-bg);
-  border: 1.5px solid var(--success-bd);
-  padding: 2px 7px;
-  border-radius: 99px;
-  letter-spacing: 0.02em;
-}
 .q-pinyin { font-size: 0.82rem; color: var(--pinyin); font-weight: 600; }
 .q-zhuyin {
   font-size: 0.78rem; color: var(--coral-dk); font-weight: 500;

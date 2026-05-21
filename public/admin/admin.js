@@ -398,18 +398,11 @@ function renderTopicGroups() {
           : q.emoji && q.emoji.trim()
             ? `<span class="q-visual">${q.emoji}</span>`
             : '';
-      // Position badge makes the random correctIndex visible to the teacher
-      // at a glance (e.g. 2/4 means the correct option is the 2nd).
-      const total = Array.isArray(q.options) ? q.options.length : 4;
-      const posBadge = Number.isInteger(q.correctIndex)
-        ? `<span class="q-correct-pos" title="Correct answer position">${q.correctIndex + 1}/${total}</span>`
-        : '';
       row.innerHTML = `
         ${visual}
         <div class="q-main">
           <div class="q-prompt" title="${escapeAttr(q.question_en || '')}">${escapeHtml(q.question_en || '(no prompt)')}</div>
           <div class="q-answer">
-            ${posBadge}
             <span class="q-chinese">${escapeHtml(q.answer.chinese)}</span>
             <span class="q-pinyin">${escapeHtml(q.answer.pinyin || '')}</span>
             ${q.answer.zhuyin ? `<span class="q-zhuyin">${escapeHtml(q.answer.zhuyin)}</span>` : ''}
