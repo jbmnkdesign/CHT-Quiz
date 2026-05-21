@@ -128,24 +128,57 @@ async function generateText(prompt, systemInstruction) {
   return response.text;
 }
 
-// Use Gemini's image-generation model ("Nano Banana") to produce a single image.
-// Returns a base64 data URL on success, or throws.
+// Generate a single illustration via Hugging Face's FLUX.1-schnell.
+// Returns a base64 `data:image/jpeg;base64,…` URL on success, or throws an
+// Error with a teacher-friendly message that the admin route surfaces in a toast.
+const HF_IMAGE_ENDPOINT =
+  'https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell';
+
 async function generateImage(prompt) {
-  const response = await client.models.generateContent({
-    model: 'gemini-2.5-flash-image-preview',
-    contents: prompt,
-    config: { responseModalities: ['IMAGE', 'TEXT'] }
+  const token = process.env.HF_TOKEN;
+  if (!token) {
+    throw new Error('Hugging Face auth failed — HF_TOKEN is not set');
+  }
+
+  const res = await fetch(HF_IMAGE_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'image/jpeg',
+      'Content-Type': 'application/json'
+    },
+    // schnell is distilled for ~1–4 steps; 4 gives the best quality/speed.
+    body: JSON.stringify({ inputs: prompt, parameters: { num_inference_steps: 4 } })
   });
 
-  for (const candidate of response.candidates || []) {
-    for (const part of candidate.content?.parts || []) {
-      if (part.inlineData && part.inlineData.data) {
-        const mime = part.inlineData.mimeType || 'image/png';
-        return `data:${mime};base64,${part.inlineData.data}`;
-      }
-    }
+  const contentType = res.headers.get('content-type') || '';
+
+  if (res.ok && contentType.startsWith('image/')) {
+    const buf = Buffer.from(await res.arrayBuffer());
+    return `data:image/jpeg;base64,${buf.toString('base64')}`;
   }
-  throw new Error('Model returned no image data');
+
+  // Non-image response — try to surface the JSON error body from HF.
+  let detail = '';
+  try {
+    const text = await res.text();
+    const json = JSON.parse(text);
+    detail = json.error || text;
+    if (res.status === 503 && json.estimated_time) {
+      throw new Error(`FLUX is warming up — retry in ~${Math.ceil(json.estimated_time)}s`);
+    }
+  } catch (e) {
+    if (e instanceof Error && e.message.startsWith('FLUX is warming up')) throw e;
+    // fall through with whatever detail we have
+  }
+
+  if (res.status === 401 || res.status === 403) {
+    throw new Error('Hugging Face auth failed — check HF_TOKEN scope');
+  }
+  if (res.status === 429) {
+    throw new Error('Hugging Face rate limit hit — try again shortly');
+  }
+  throw new Error(`Hugging Face image API ${res.status}: ${detail || 'unknown error'}`);
 }
 
 module.exports = { chatWithAI, generateText, generateImage };
